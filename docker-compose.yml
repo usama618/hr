@@ -5,6 +5,7 @@ services:
       - "8090:8000"
     volumes:
       - profile_uploads:/app/public/uploads/profiles
+      - document_uploads:/app/var/documents
     environment:
       APP_ENV: dev
       APP_SECRET: change-me-in-production
@@ -34,3 +35,4 @@ services:
 volumes:
   mysql_data:
   profile_uploads:
+  document_uploads:

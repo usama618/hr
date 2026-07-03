@@ -16,7 +16,7 @@
                 }
             })();
         </script>
-        <link rel="stylesheet" href="{{ asset('styles.css') }}?v=waldbyte-hr-16">
+        <link rel="stylesheet" href="{{ asset('styles.css') }}?v=waldbyte-hr-17">
         {% block stylesheets %}
         {% endblock %}
 
@@ -41,6 +41,8 @@
                         <a href="{{ path('admin_tasks') }}">Tasks</a>
                         <a href="{{ path('admin_reports') }}">Reports</a>
                     {% endif %}
+                    <a href="{{ path('app_directory_index') }}" class="{% if current_route starts with 'app_directory_' %}active{% endif %}">Directory</a>
+                    <a href="{{ path('app_documents_index') }}" class="{% if current_route starts with 'app_documents_' %}active{% endif %}">Documents</a>
                     <a href="{{ path('app_notes_index') }}" class="{% if current_route starts with 'app_notes_' %}active{% endif %}">Notes</a>
                 </nav>
                 <div class="account">

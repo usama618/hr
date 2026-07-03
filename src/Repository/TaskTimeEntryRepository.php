@@ -48,13 +48,45 @@ class TaskTimeEntryRepository extends ServiceEntityRepository
      */
     public function findRecentCompanyEntries(int $limit = 80): array
     {
+        return $this->findCompanyEntries($limit);
+    }
+
+    /**
+     * @return list<TaskTimeEntry>
+     */
+    public function findCompanyEntries(?int $limit = null): array
+    {
+        $builder = $this->createQueryBuilder('t')
+            ->leftJoin('t.employee', 'employee')
+            ->leftJoin('t.task', 'task')
+            ->leftJoin('task.project', 'project')
+            ->addSelect('employee', 'task', 'project')
+            ->orderBy('t.startedAt', 'DESC');
+
+        if ($limit !== null) {
+            $builder->setMaxResults($limit);
+        }
+
+        return $builder
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * @return list<TaskTimeEntry>
+     */
+    public function findCompanyEntriesBetween(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    {
         return $this->createQueryBuilder('t')
             ->leftJoin('t.employee', 'employee')
             ->leftJoin('t.task', 'task')
             ->leftJoin('task.project', 'project')
             ->addSelect('employee', 'task', 'project')
+            ->andWhere('t.startedAt >= :from')
+            ->andWhere('t.startedAt < :to')
+            ->setParameter('from', $from)
+            ->setParameter('to', $to)
             ->orderBy('t.startedAt', 'DESC')
-            ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
     }

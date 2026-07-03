@@ -3,10 +3,22 @@
 {% block title %}Reports | Waldbyte HR{% endblock %}
 
 {% block body %}
+    {% set report_export_params = {
+        from: attendance_range_start|date('Y-m-d'),
+        to: attendance_range_end|date('Y-m-d')
+    } %}
+
     <div class="page-title">
         <div>
             <h1>Reports</h1>
             <p class="muted">Admin-only attendance and timer details.</p>
+        </div>
+        <div class="report-export-actions" aria-label="Report exports">
+            <a class="button button-secondary" href="{{ path('admin_reports_export', report_export_params|merge({type: 'attendance'})) }}">Attendance CSV</a>
+            <a class="button button-secondary" href="{{ path('admin_reports_export', report_export_params|merge({type: 'task-time'})) }}">Task Time CSV</a>
+            <a class="button button-secondary" href="{{ path('admin_reports_export', report_export_params|merge({type: 'leave'})) }}">Leave CSV</a>
+            <a class="button button-secondary" href="{{ path('admin_reports_export', report_export_params|merge({type: 'projects'})) }}">Projects CSV</a>
+            <a class="button button-secondary" href="{{ path('admin_reports_export', report_export_params|merge({type: 'users'})) }}">Users CSV</a>
         </div>
     </div>
 

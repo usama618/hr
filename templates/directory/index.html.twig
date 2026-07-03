@@ -1,0 +1,88 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Directory | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title">
+        <div>
+            <span class="panel-label">People</span>
+            <h1>Employee Directory</h1>
+            <p class="muted">Find teammates by role, title, email, and skills.</p>
+        </div>
+    </div>
+
+    <section class="grid grid-3 directory-metrics">
+        <article class="card">
+            <span class="panel-label">Active</span>
+            <h2>People</h2>
+            <div class="metric">{{ directory_users|length }}</div>
+        </article>
+        <article class="card">
+            <span class="panel-label">Role</span>
+            <h2>Employees</h2>
+            <div class="metric">{{ employee_count }}</div>
+        </article>
+        <article class="card">
+            <span class="panel-label">Role</span>
+            <h2>Admins</h2>
+            <div class="metric">{{ admin_count }}</div>
+        </article>
+    </section>
+
+    <form class="directory-filter card" method="get" action="{{ path('app_directory_index') }}">
+        <label>
+            <span>Search</span>
+            <input type="search" name="q" value="{{ directory_query }}" placeholder="Name, email, title, skill">
+        </label>
+        <label>
+            <span>Role</span>
+            <select name="role">
+                <option value="">All roles</option>
+                <option value="ROLE_EMPLOYEE" {% if directory_role == 'ROLE_EMPLOYEE' %}selected{% endif %}>Employees</option>
+                <option value="ROLE_SUPER_ADMIN" {% if directory_role == 'ROLE_SUPER_ADMIN' %}selected{% endif %}>Admins</option>
+            </select>
+        </label>
+        <button type="submit">Filter</button>
+    </form>
+
+    <section class="directory-grid">
+        {% for user in directory_users %}
+            <article class="card directory-card">
+                <div class="directory-card-head">
+                    {% include 'partials/_avatar.html.twig' with {user: user, size: 'lg'} only %}
+                    <div>
+                        <h2>{{ user.fullName }}</h2>
+                        <p class="muted">{{ user.jobTitle ?: user.role|role_label }}</p>
+                    </div>
+                </div>
+
+                {% if user.bio %}
+                    <p class="directory-bio">{{ user.bio }}</p>
+                {% endif %}
+
+                <dl class="detail-list directory-detail-list">
+                    <div>
+                        <dt>Email</dt>
+                        <dd><a href="mailto:{{ user.email }}">{{ user.email }}</a></dd>
+                    </div>
+                    <div>
+                        <dt>Role</dt>
+                        <dd>{{ user.role|role_label }}</dd>
+                    </div>
+                </dl>
+
+                {% if user.skillList %}
+                    <div class="skill-list" aria-label="{{ user.fullName }} skills">
+                        {% for skill in user.skillList|slice(0, 8) %}
+                            <span class="badge">{{ skill }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </article>
+        {% else %}
+            <article class="card">
+                <p class="muted">No matching people found.</p>
+            </article>
+        {% endfor %}
+    </section>
+{% endblock %}

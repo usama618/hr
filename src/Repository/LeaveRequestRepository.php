@@ -44,4 +44,21 @@ class LeaveRequestRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * @return list<LeaveRequest>
+     */
+    public function findCompanyRequestsBetween(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    {
+        return $this->createQueryBuilder('l')
+            ->leftJoin('l.employee', 'employee')
+            ->addSelect('employee')
+            ->andWhere('l.createdAt >= :from')
+            ->andWhere('l.createdAt < :to')
+            ->setParameter('from', $from)
+            ->setParameter('to', $to)
+            ->orderBy('l.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
 }

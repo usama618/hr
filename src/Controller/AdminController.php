@@ -21,6 +21,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
@@ -394,31 +395,9 @@ class AdminController extends AbstractController
         LeaveRequestRepository $leaveRequests,
         TaskTimeEntryRepository $taskTimeEntries,
         UserRepository $users,
-        EntityManagerInterface $entityManager,
     ): Response {
-        $allTaskTimeEntries = $entityManager->getRepository(TaskTimeEntry::class)->findAll();
-        $projectTotals = [];
-
-        foreach ($allTaskTimeEntries as $entry) {
-            if (!$entry instanceof TaskTimeEntry || !$entry->getTask()?->getProject()) {
-                continue;
-            }
-
-            $projectName = $entry->getTask()->getProject()->getName();
-            $projectTotals[$projectName] = ($projectTotals[$projectName] ?? 0) + $entry->getSeconds();
-        }
-
-        arsort($projectTotals);
-
-        $defaultRangeEnd = new \DateTimeImmutable('today');
-        $rangeEnd = $this->readReportDate($request->query->get('to'), $defaultRangeEnd);
-        $rangeStart = $this->readReportDate($request->query->get('from'), $rangeEnd->modify('-13 days'));
-
-        if ($rangeStart > $rangeEnd) {
-            [$rangeStart, $rangeEnd] = [$rangeEnd, $rangeStart];
-        }
-
-        $rangeEndExclusive = $rangeEnd->modify('+1 day');
+        $projectTotals = $this->buildProjectTotals($taskTimeEntries->findCompanyEntries());
+        [$rangeStart, $rangeEnd, $rangeEndExclusive] = $this->readReportRange($request);
         $reportDate = $rangeEnd;
         $reportDateEnd = $reportDate->modify('+1 day');
         $employees = $users->findBy(['role' => User::ROLE_EMPLOYEE], ['fullName' => 'ASC']);
@@ -438,6 +417,27 @@ class AdminController extends AbstractController
             'task_time_entries' => $taskTimeEntries->findRecentCompanyEntries(),
             'project_totals' => $projectTotals,
         ]);
+    }
+
+    #[Route('/reports/export/{type}', name: 'reports_export', requirements: ['type' => 'attendance|task-time|leave|projects|users'], methods: ['GET'])]
+    public function exportReports(
+        string $type,
+        Request $request,
+        AttendanceEntryRepository $attendanceEntries,
+        LeaveRequestRepository $leaveRequests,
+        TaskTimeEntryRepository $taskTimeEntries,
+        UserRepository $users,
+        EntityManagerInterface $entityManager,
+    ): StreamedResponse {
+        [$rangeStart, $rangeEnd, $rangeEndExclusive] = $this->readReportRange($request);
+
+        return match ($type) {
+            'attendance' => $this->exportAttendanceReport($attendanceEntries, $rangeStart, $rangeEnd, $rangeEndExclusive),
+            'task-time' => $this->exportTaskTimeReport($taskTimeEntries, $rangeStart, $rangeEnd, $rangeEndExclusive),
+            'leave' => $this->exportLeaveReport($leaveRequests, $rangeStart, $rangeEnd, $rangeEndExclusive),
+            'projects' => $this->exportProjectReport($entityManager, $taskTimeEntries, $rangeStart, $rangeEnd, $rangeEndExclusive),
+            'users' => $this->exportUserReport($users, $rangeStart, $rangeEnd),
+        };
     }
 
     #[Route('/leave-requests/{id}/{status}', name: 'leave_status', requirements: ['status' => 'approved|rejected'], methods: ['POST'])]
@@ -525,6 +525,307 @@ class AdminController extends AbstractController
         if (is_file($path)) {
             unlink($path);
         }
+    }
+
+    /**
+     * @return array{0: \DateTimeImmutable, 1: \DateTimeImmutable, 2: \DateTimeImmutable}
+     */
+    private function readReportRange(Request $request): array
+    {
+        $defaultRangeEnd = new \DateTimeImmutable('today');
+        $rangeEnd = $this->readReportDate($request->query->get('to'), $defaultRangeEnd);
+        $rangeStart = $this->readReportDate($request->query->get('from'), $rangeEnd->modify('-13 days'));
+
+        if ($rangeStart > $rangeEnd) {
+            [$rangeStart, $rangeEnd] = [$rangeEnd, $rangeStart];
+        }
+
+        return [$rangeStart, $rangeEnd, $rangeEnd->modify('+1 day')];
+    }
+
+    private function exportAttendanceReport(
+        AttendanceEntryRepository $attendanceEntries,
+        \DateTimeImmutable $rangeStart,
+        \DateTimeImmutable $rangeEnd,
+        \DateTimeImmutable $rangeEndExclusive,
+    ): StreamedResponse {
+        $rows = [];
+        foreach ($this->buildAttendanceDayRows($attendanceEntries->findCompanyEntriesBetween($rangeStart, $rangeEndExclusive)) as $row) {
+            $sessions = array_map(function (array $session): string {
+                return sprintf(
+                    '%s-%s (%s worked, %s break)',
+                    $this->formatTime($session['check_in'] ?? null),
+                    $session['check_out'] ? $this->formatTime($session['check_out']) : 'Active',
+                    $this->formatDuration((int) $session['worked_seconds']),
+                    $this->formatDuration((int) $session['break_seconds']),
+                );
+            }, $row['sessions']);
+
+            $rows[] = [
+                $this->formatDate($row['date']),
+                $row['employee']->getFullName(),
+                $row['employee']->getEmail(),
+                $row['employee']->getJobTitle(),
+                count($row['sessions']),
+                $this->formatTime($row['first_check_in']),
+                $row['has_open_entry'] ? 'Active' : $this->formatTime($row['last_check_out']),
+                $this->formatDuration((int) $row['break_seconds']),
+                $this->formatDuration((int) $row['worked_seconds']),
+                $row['status'],
+                implode('; ', $sessions),
+            ];
+        }
+
+        return $this->csvResponse(
+            $this->reportFilename('attendance', $rangeStart, $rangeEnd),
+            ['Date', 'Employee', 'Email', 'Job Title', 'Sessions', 'First In', 'Last Out', 'Break', 'Worked', 'Status', 'Session Details'],
+            $rows,
+        );
+    }
+
+    private function exportTaskTimeReport(
+        TaskTimeEntryRepository $taskTimeEntries,
+        \DateTimeImmutable $rangeStart,
+        \DateTimeImmutable $rangeEnd,
+        \DateTimeImmutable $rangeEndExclusive,
+    ): StreamedResponse {
+        $rows = [];
+        foreach ($taskTimeEntries->findCompanyEntriesBetween($rangeStart, $rangeEndExclusive) as $entry) {
+            $employee = $entry->getEmployee();
+            $task = $entry->getTask();
+            $project = $task?->getProject();
+
+            $rows[] = [
+                $employee?->getFullName(),
+                $employee?->getEmail(),
+                $project?->getName(),
+                $task?->getTitle(),
+                $task ? $this->formatStatusLabel($task->getStatus()) : '',
+                $this->formatDateTime($entry->getStartedAt()),
+                $entry->getEndedAt() ? $this->formatDateTime($entry->getEndedAt()) : 'Active',
+                $this->formatDuration($entry->getSeconds()),
+                $entry->getSeconds(),
+                $entry->getNote(),
+            ];
+        }
+
+        return $this->csvResponse(
+            $this->reportFilename('task_time', $rangeStart, $rangeEnd),
+            ['Employee', 'Email', 'Project', 'Task', 'Task Status', 'Started', 'Ended', 'Duration', 'Seconds', 'Note'],
+            $rows,
+        );
+    }
+
+    private function exportLeaveReport(
+        LeaveRequestRepository $leaveRequests,
+        \DateTimeImmutable $rangeStart,
+        \DateTimeImmutable $rangeEnd,
+        \DateTimeImmutable $rangeEndExclusive,
+    ): StreamedResponse {
+        $rows = [];
+        foreach ($leaveRequests->findCompanyRequestsBetween($rangeStart, $rangeEndExclusive) as $leaveRequest) {
+            $employee = $leaveRequest->getEmployee();
+
+            $rows[] = [
+                $employee?->getFullName(),
+                $employee?->getEmail(),
+                $this->formatStatusLabel($leaveRequest->getLeaveType()),
+                $this->formatDate($leaveRequest->getStartDate()),
+                $this->formatDate($leaveRequest->getEndDate()),
+                $leaveRequest->getDays(),
+                $this->formatStatusLabel($leaveRequest->getStatus()),
+                $leaveRequest->getReason(),
+                $this->formatDateTime($leaveRequest->getCreatedAt()),
+                $this->formatDateTime($leaveRequest->getReviewedAt()),
+            ];
+        }
+
+        return $this->csvResponse(
+            $this->reportFilename('leave_requests', $rangeStart, $rangeEnd),
+            ['Employee', 'Email', 'Type', 'Start Date', 'End Date', 'Days', 'Status', 'Reason', 'Requested At', 'Reviewed At'],
+            $rows,
+        );
+    }
+
+    private function exportProjectReport(
+        EntityManagerInterface $entityManager,
+        TaskTimeEntryRepository $taskTimeEntries,
+        \DateTimeImmutable $rangeStart,
+        \DateTimeImmutable $rangeEnd,
+        \DateTimeImmutable $rangeEndExclusive,
+    ): StreamedResponse {
+        $trackedSeconds = [];
+        $sessionCounts = [];
+        foreach ($taskTimeEntries->findCompanyEntriesBetween($rangeStart, $rangeEndExclusive) as $entry) {
+            $project = $entry->getTask()?->getProject();
+            if (!$project || !$project->getId()) {
+                continue;
+            }
+
+            $projectId = $project->getId();
+            $trackedSeconds[$projectId] = ($trackedSeconds[$projectId] ?? 0) + $entry->getSeconds();
+            $sessionCounts[$projectId] = ($sessionCounts[$projectId] ?? 0) + 1;
+        }
+
+        $rows = [];
+        foreach ($entityManager->getRepository(Project::class)->findBy([], ['name' => 'ASC']) as $project) {
+            if (!$project instanceof Project || !$project->getId()) {
+                continue;
+            }
+
+            $seconds = $trackedSeconds[$project->getId()] ?? 0;
+            $rows[] = [
+                $project->getName(),
+                $project->getClientName(),
+                $this->formatStatusLabel($project->getStatus()),
+                $this->formatDate($project->getStartDate()),
+                $this->formatDate($project->getDeadline()),
+                $project->getEmployees()->count(),
+                $project->getTasks()->count(),
+                $sessionCounts[$project->getId()] ?? 0,
+                $this->formatDuration($seconds),
+                $seconds,
+                $this->formatDateTime($project->getCreatedAt()),
+            ];
+        }
+
+        return $this->csvResponse(
+            $this->reportFilename('project_totals', $rangeStart, $rangeEnd),
+            ['Project', 'Client', 'Status', 'Start Date', 'Deadline', 'Members', 'Tasks', 'Timer Sessions', 'Tracked Time', 'Tracked Seconds', 'Created At'],
+            $rows,
+        );
+    }
+
+    private function exportUserReport(UserRepository $users, \DateTimeImmutable $rangeStart, \DateTimeImmutable $rangeEnd): StreamedResponse
+    {
+        $rows = [];
+        foreach ($users->findBy([], ['fullName' => 'ASC']) as $user) {
+            if (!$user instanceof User) {
+                continue;
+            }
+
+            $rows[] = [
+                $user->getFullName(),
+                $user->getEmail(),
+                $this->formatRoleLabel($user->getRole()),
+                $user->getJobTitle(),
+                $user->isActive() ? 'Active' : 'Inactive',
+                $user->getProjects()->count(),
+                implode(', ', $user->getSkillList()),
+                $this->formatDateTime($user->getCreatedAt()),
+            ];
+        }
+
+        return $this->csvResponse(
+            $this->reportFilename('users', $rangeStart, $rangeEnd),
+            ['Name', 'Email', 'Role', 'Job Title', 'Status', 'Projects', 'Skills', 'Created At'],
+            $rows,
+        );
+    }
+
+    /**
+     * @param iterable<TaskTimeEntry> $taskTimeEntries
+     *
+     * @return array<string, int>
+     */
+    private function buildProjectTotals(iterable $taskTimeEntries): array
+    {
+        $projectTotals = [];
+
+        foreach ($taskTimeEntries as $entry) {
+            if (!$entry instanceof TaskTimeEntry || !$entry->getTask()?->getProject()) {
+                continue;
+            }
+
+            $projectName = $entry->getTask()->getProject()->getName();
+            $projectTotals[$projectName] = ($projectTotals[$projectName] ?? 0) + $entry->getSeconds();
+        }
+
+        arsort($projectTotals);
+
+        return $projectTotals;
+    }
+
+    /**
+     * @param list<string> $headers
+     * @param iterable<array<int, mixed>> $rows
+     */
+    private function csvResponse(string $filename, array $headers, iterable $rows): StreamedResponse
+    {
+        $response = new StreamedResponse(function () use ($headers, $rows): void {
+            $handle = fopen('php://output', 'w');
+            if ($handle === false) {
+                return;
+            }
+
+            fputcsv($handle, $headers);
+            foreach ($rows as $row) {
+                fputcsv($handle, array_map([$this, 'normalizeCsvValue'], $row));
+            }
+            fclose($handle);
+        });
+
+        $response->headers->set('Content-Type', 'text/csv; charset=UTF-8');
+        $response->headers->set('Content-Disposition', 'attachment; filename="'.$filename.'"');
+
+        return $response;
+    }
+
+    private function normalizeCsvValue(mixed $value): string
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d H:i:s');
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        return $value === null ? '' : (string) $value;
+    }
+
+    private function reportFilename(string $prefix, \DateTimeImmutable $rangeStart, \DateTimeImmutable $rangeEnd): string
+    {
+        return sprintf('%s_%s_to_%s.csv', $prefix, $rangeStart->format('Y-m-d'), $rangeEnd->format('Y-m-d'));
+    }
+
+    private function formatDate(?\DateTimeInterface $date): string
+    {
+        return $date ? $date->format('Y-m-d') : '';
+    }
+
+    private function formatTime(?\DateTimeInterface $date): string
+    {
+        return $date ? $date->format('H:i') : '';
+    }
+
+    private function formatDateTime(?\DateTimeInterface $date): string
+    {
+        return $date ? $date->format('Y-m-d H:i') : '';
+    }
+
+    private function formatDuration(int $seconds): string
+    {
+        $seconds = max(0, $seconds);
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+        $remainingSeconds = $seconds % 60;
+
+        return sprintf('%02d:%02d:%02d', $hours, $minutes, $remainingSeconds);
+    }
+
+    private function formatRoleLabel(string $role): string
+    {
+        return match ($role) {
+            User::ROLE_SUPER_ADMIN => 'Super Admin',
+            User::ROLE_EMPLOYEE => 'Employee',
+            default => ucfirst(strtolower(str_replace(['ROLE_', '_'], ['', ' '], $role))),
+        };
+    }
+
+    private function formatStatusLabel(string $status): string
+    {
+        return ucfirst(str_replace('_', ' ', $status));
     }
 
     private function readReportDate(mixed $value, \DateTimeImmutable $fallback): \DateTimeImmutable
