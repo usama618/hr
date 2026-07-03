@@ -1,0 +1,7 @@
+{% set avatar_size = size|default('md') %}
+
+{% if user.profileImage %}
+    <img class="avatar avatar--{{ avatar_size }}" src="{{ asset('uploads/profiles/' ~ user.profileImage) }}" alt="{{ user.fullName }} avatar">
+{% else %}
+    <span class="avatar avatar--{{ avatar_size }} avatar-placeholder" aria-hidden="true">{{ user.initials }}</span>
+{% endif %}

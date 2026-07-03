@@ -1,0 +1,138 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ task.title }} | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title">
+        <div>
+            <h1>{{ task.title }}</h1>
+            <p class="muted">{{ task.project.name }} · {{ task.status|status_label }}</p>
+        </div>
+        <div class="actions">
+            <a class="button button-secondary" href="{{ back_path }}">{{ back_label }}</a>
+            {% if edit_path %}
+                <a class="button" href="{{ edit_path }}">Edit Task</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="task-detail-layout">
+        <article class="card task-post">
+            <div class="page-title compact-title">
+                <div>
+                    <span class="panel-label">Task</span>
+                    <h2>Task Details</h2>
+                </div>
+                <span class="badge">{{ task.priority|status_label }}</span>
+            </div>
+
+            {% if task.description %}
+                <div class="task-description">{{ task.description|nl2br }}</div>
+            {% else %}
+                <p class="muted">No description added.</p>
+            {% endif %}
+
+            <dl class="detail-list">
+                <div>
+                    <dt>Project</dt>
+                    <dd>{{ task.project.name }}</dd>
+                </div>
+                <div>
+                    <dt>Assigned to</dt>
+                    <dd>{{ task.assignedTo ? task.assignedTo.fullName : 'Unassigned' }}</dd>
+                </div>
+                <div>
+                    <dt>Created by</dt>
+                    <dd>{{ task.createdBy ? task.createdBy.fullName : 'Admin' }}</dd>
+                </div>
+                <div>
+                    <dt>Status</dt>
+                    <dd>
+                        {% if can_update_status is defined and can_update_status and status_update_path is defined and task_status_options is defined %}
+                            <form class="task-status-form task-status-inline-form" method="post" action="{{ status_update_path }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('task_status_' ~ task.id) }}">
+                                <input type="hidden" name="return_to" value="task">
+                                <select class="task-status-select" id="task-detail-status-{{ task.id }}" name="status" aria-label="Change task status" onchange="this.form.submit()">
+                                    {% for status_value, status_label in task_status_options %}
+                                        <option value="{{ status_value }}" {% if task.status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        {% else %}
+                            {{ task.status|status_label }}
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt>Tracked</dt>
+                    <dd>{{ task.trackedSeconds|duration }}</dd>
+                </div>
+                <div>
+                    <dt>Estimate</dt>
+                    <dd>{{ task.estimatedMinutes ? task.estimatedMinutes ~ ' minutes' : '-' }}</dd>
+                </div>
+            </dl>
+        </article>
+
+        <section class="card task-thread">
+            <div class="thread-head">
+                <div>
+                    <span class="panel-label">Discussion</span>
+                    <h2>Comments</h2>
+                </div>
+                <span class="badge">{{ task.comments|length }}</span>
+            </div>
+
+            <form class="post-comment-form" method="post" action="{{ comment_add_path }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('comment_' ~ task.id) }}">
+                <label for="task-comment-new">Write a comment</label>
+                <textarea id="task-comment-new" name="body" rows="3" required></textarea>
+                <button type="submit">Post Comment</button>
+            </form>
+
+            <div class="comment-list comment-thread-list">
+                {% for comment in task.comments %}
+                    {% set can_edit_comment = can_administer_comments or (comment.author and app.user and comment.author.id == app.user.id) %}
+                    <article class="comment-item">
+                        <div class="comment-row">
+                            {% if comment.author %}
+                                {% include 'partials/_avatar.html.twig' with {user: comment.author, size: 'sm'} only %}
+                            {% else %}
+                                <span class="avatar avatar--sm avatar-placeholder" aria-hidden="true">?</span>
+                            {% endif %}
+
+                            <div class="comment-content">
+                                <div class="comment-meta">
+                                    <strong>{{ comment.author ? comment.author.fullName : 'Deleted user' }}</strong>
+                                    <span>{{ comment.createdAt|date('Y-m-d H:i') }}</span>
+                                </div>
+                                <p>{{ comment.body|nl2br }}</p>
+
+                                {% if can_edit_comment %}
+                                    <div class="comment-actions">
+                                        <details class="comment-edit">
+                                            <summary>Edit</summary>
+                                            <form method="post" action="{{ path(comment_edit_route, {id: comment.id}) }}">
+                                                <input type="hidden" name="_token" value="{{ csrf_token('comment_edit_' ~ comment.id) }}">
+                                                <label for="comment-edit-{{ comment.id }}">Edit comment</label>
+                                                <textarea id="comment-edit-{{ comment.id }}" name="body" rows="3" required>{{ comment.body }}</textarea>
+                                                <button type="submit" class="secondary">Save Comment</button>
+                                            </form>
+                                        </details>
+
+                                        <form method="post" action="{{ path(comment_delete_route, {id: comment.id}) }}" onsubmit="return confirm('Delete this comment?');">
+                                            <input type="hidden" name="_token" value="{{ csrf_token('comment_delete_' ~ comment.id) }}">
+                                            <button type="submit" class="danger">Delete</button>
+                                        </form>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </article>
+                {% else %}
+                    <p class="muted">No comments yet.</p>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+{% endblock %}

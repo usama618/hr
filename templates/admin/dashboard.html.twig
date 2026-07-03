@@ -1,0 +1,39 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Admin Dashboard | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title">
+        <div>
+            <h1>Admin Dashboard</h1>
+            <p class="muted">Company-level view for users, projects, tasks, and active attendance.</p>
+        </div>
+        <div class="actions">
+            <a class="button" href="{{ path('admin_employee_new') }}">Add User</a>
+            <a class="button button-secondary" href="{{ path('admin_project_new') }}">Add Project</a>
+        </div>
+    </div>
+
+    <section class="grid grid-4">
+        <article class="card metric-card">
+            <span class="panel-label">Team</span>
+            <h3>Employees</h3>
+            <div class="metric">{{ employee_count }}</div>
+        </article>
+        <article class="card metric-card">
+            <span class="panel-label">Access</span>
+            <h3>Projects</h3>
+            <div class="metric">{{ project_count }}</div>
+        </article>
+        <article class="card metric-card">
+            <span class="panel-label">Work</span>
+            <h3>Tasks</h3>
+            <div class="metric">{{ task_count }}</div>
+        </article>
+        <article class="card metric-card">
+            <span class="panel-label">Now</span>
+            <h3>Checked In</h3>
+            <div class="metric">{{ active_attendance_count }}</div>
+        </article>
+    </section>
+{% endblock %}

@@ -1,0 +1,126 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ project.name }} | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title">
+        <div>
+            <h1>{{ project.name }}</h1>
+            <p class="muted">
+                {% if project.clientName %}
+                    {{ project.clientName }} ·
+                {% endif %}
+                {{ project.status|status_label }}
+            </p>
+        </div>
+        <div class="actions">
+            <a class="button button-secondary profile-back-button" href="{{ path('employee_dashboard') }}?tab=projects">Back to Projects</a>
+        </div>
+    </div>
+
+    <div class="project-detail-layout">
+        <article class="card project-summary-card">
+            <div class="page-title compact-title">
+                <div>
+                    <h2>Details</h2>
+                    <p class="muted">Project access and schedule</p>
+                </div>
+                <span class="badge">{{ project.status|status_label }}</span>
+            </div>
+
+            {% if project.description %}
+                <div class="task-description">{{ project.description|nl2br }}</div>
+            {% else %}
+                <p class="muted">No description added.</p>
+            {% endif %}
+
+            <dl class="detail-list">
+                <div>
+                    <dt>Start</dt>
+                    <dd>{{ project.startDate ? project.startDate|date('d.m.Y') : 'Not set' }}</dd>
+                </div>
+                <div>
+                    <dt>Deadline</dt>
+                    <dd>{{ project.deadline ? project.deadline|date('d.m.Y') : 'No deadline' }}</dd>
+                </div>
+                <div>
+                    <dt>Tasks</dt>
+                    <dd>{{ tasks|length }}</dd>
+                </div>
+                <div>
+                    <dt>Client</dt>
+                    <dd>{{ project.clientName ?: 'Not set' }}</dd>
+                </div>
+            </dl>
+        </article>
+
+        <section class="project-tasks-panel">
+            <div class="section-head">
+                <div>
+                    <h2>Project Tasks</h2>
+                </div>
+            </div>
+
+            <div class="stack">
+                {% for task in tasks %}
+                    {% set is_assigned_to_me = task.assignedTo and task.assignedTo.id == employee.id %}
+                    {% set is_created_by_me = task.createdBy and task.createdBy.id == employee.id %}
+                    {% set can_open_task = is_assigned_to_me or is_created_by_me %}
+
+                    <article class="card task-card{% if task.status == 'completed' %} is-completed{% endif %}">
+                        <div class="page-title compact-title">
+                            <div>
+                                <h3>
+                                    {% if task.status == 'completed' %}
+                                        <span class="task-complete-mark" aria-hidden="true"></span>
+                                    {% endif %}
+                                    {{ task.title }}
+                                </h3>
+                                <div class="muted">
+                                    {{ task.status|status_label }}
+                                    {% if task.assignedTo %}
+                                        · Assigned to {{ task.assignedTo.fullName }}
+                                    {% endif %}
+                                    {% if can_open_task %}
+                                        · Tracked {{ task.trackedSeconds|duration }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <span class="badge">{{ task.priority|status_label }}</span>
+                        </div>
+
+                        {% if task.description %}
+                            <p>{{ task.description }}</p>
+                        {% endif %}
+
+                        <div class="actions">
+                            {% if can_open_task %}
+                                <a class="button button-secondary" href="{{ path('employee_task_show', {id: task.id}) }}">View</a>
+                            {% endif %}
+
+                            {% if is_assigned_to_me %}
+                                <form class="task-status-form" method="post" action="{{ path('employee_task_status', {id: task.id}) }}">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('task_status_' ~ task.id) }}">
+                                    <input type="hidden" name="return_to" value="project">
+                                    <select class="task-status-select" id="project-task-status-{{ task.id }}" name="status" aria-label="Change task status" onchange="this.form.submit()">
+                                        {% for status_value, status_label in task_status_options %}
+                                            <option value="{{ status_value }}" {% if task.status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </form>
+                            {% elseif task.assignedTo %}
+                                <span class="badge">Owned by {{ task.assignedTo.fullName }}</span>
+                            {% else %}
+                                <span class="badge">Unassigned</span>
+                            {% endif %}
+                        </div>
+                    </article>
+                {% else %}
+                    <div class="card">
+                        <p class="muted">No tasks have been added to this project yet.</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+{% endblock %}

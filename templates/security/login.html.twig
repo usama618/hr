@@ -1,0 +1,50 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Login | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="auth-page">
+        <section class="auth-hero" aria-label="Waldbyte HR">
+            <div class="auth-kicker">WALD<span>BYTE</span></div>
+            <h1>Waldbyte HR</h1>
+            <p>Track attendance, breaks, projects, and task time in one focused internal system.</p>
+            <div class="auth-stats">
+                <span><strong>01</strong> Attendance</span>
+                <span><strong>02</strong> Projects</span>
+                <span><strong>03</strong> Reports</span>
+            </div>
+        </section>
+
+        <section class="auth-box">
+            <div class="auth-box-head">
+                <span class="panel-label">Secure Access</span>
+                <h2>Sign in</h2>
+            </div>
+
+            {% if error %}
+                <div class="flash flash-error">{{ error.messageKey|trans(error.messageData, 'security') }}</div>
+            {% endif %}
+
+            <form method="post" action="{{ path('app_login') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+
+                <div>
+                    <label for="username">Email</label>
+                    <input id="username" type="email" name="_username" value="{{ last_username }}" autocomplete="email" required autofocus>
+                </div>
+
+                <div>
+                    <label for="password">Password</label>
+                    <input id="password" type="password" name="_password" autocomplete="current-password" required>
+                </div>
+
+                <label class="checkbox-inline remember-me-option" for="remember-me">
+                    <input id="remember-me" type="checkbox" name="_remember_me" value="1">
+                    <span>Remember me for 30 days</span>
+                </label>
+
+                <button type="submit">Sign in</button>
+            </form>
+        </section>
+    </div>
+{% endblock %}

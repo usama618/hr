@@ -1,0 +1,120 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}My Profile | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title">
+        <div class="profile-greeting">
+            {% include 'partials/_avatar.html.twig' with {user: employee, size: 'lg'} only %}
+            <div>
+                <span class="panel-label">Employee Profile</span>
+                <h1>My Profile</h1>
+                <p class="muted">Manage your image, role, bio, and skills.</p>
+            </div>
+        </div>
+        <a class="button button-secondary profile-back-button" href="{{ path('employee_dashboard') }}">Back to Dashboard</a>
+    </div>
+
+    <div class="profile-layout">
+        <aside class="card profile-summary">
+            {% include 'partials/_avatar.html.twig' with {user: employee, size: 'xl'} only %}
+            <h2>{{ employee.fullName }}</h2>
+            <p class="muted">{{ employee.jobTitle ?: 'Employee' }}</p>
+
+            {% if employee.bio %}
+                <p>{{ employee.bio }}</p>
+            {% endif %}
+
+            {% if employee.skillList %}
+                <div class="skill-list" aria-label="Skills">
+                    {% for skill in employee.skillList %}
+                        <span class="badge">{{ skill }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </aside>
+
+        <section class="form-shell profile-form">
+            {{ form_start(profile_form) }}
+                {{ form_row(profile_form.fullName) }}
+
+                <div class="profile-cropper" data-avatar-cropper>
+                    <label>{{ profile_form.profileImageFile.vars.label }}</label>
+                    <div class="profile-cropper-body">
+                        <div class="profile-crop-frame" data-crop-frame>
+                            {% if employee.profileImage %}
+                                <img
+                                    data-crop-image
+                                    src="{{ asset('uploads/profiles/' ~ employee.profileImage) }}"
+                                    alt="{{ employee.fullName }} preview"
+                                >
+                            {% else %}
+                                <img data-crop-image src="" alt="{{ employee.fullName }} preview" hidden>
+                            {% endif %}
+                            <span
+                                class="avatar avatar--xl avatar-placeholder profile-crop-placeholder"
+                                data-crop-placeholder
+                                {% if employee.profileImage %}hidden{% endif %}
+                            >{{ employee.initials }}</span>
+                        </div>
+
+                        <div class="profile-cropper-controls">
+                            {{ form_widget(profile_form.profileImageFile, {
+                                attr: {
+                                    accept: 'image/jpeg,image/png,image/webp,image/gif',
+                                    'data-crop-input': ''
+                                }
+                            }) }}
+                            {{ form_errors(profile_form.profileImageFile) }}
+                            {{ form_widget(profile_form.croppedProfileImage, {
+                                attr: {
+                                    'data-crop-output': ''
+                                }
+                            }) }}
+
+                            <div class="crop-adjustments" data-crop-controls hidden>
+                                <label>
+                                    <span>Zoom</span>
+                                    <input type="range" min="1" max="3" step="0.01" value="1" data-crop-zoom>
+                                </label>
+                                <p class="muted">Drag the photo inside the circle to adjust the crop.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if employee.profileImage %}
+                    {{ form_row(profile_form.removeProfileImage) }}
+                {% else %}
+                    <div class="hidden-field">
+                        {{ form_row(profile_form.removeProfileImage) }}
+                    </div>
+                {% endif %}
+                {{ form_row(profile_form.jobTitle) }}
+                {{ form_row(profile_form.bio) }}
+                <div class="rich-text-field" data-rich-text>
+                    <label for="{{ profile_form.skills.vars.id }}">Skills</label>
+                    <div class="rich-text-toolbar" aria-label="Skills formatting">
+                        <button type="button" data-rich-command="bold">B</button>
+                        <button type="button" data-rich-command="italic">I</button>
+                        <button type="button" data-rich-command="underline">U</button>
+                        <button type="button" data-rich-command="insertUnorderedList">Bullets</button>
+                        <button type="button" data-rich-command="insertOrderedList">Numbers</button>
+                    </div>
+                    <div
+                        class="rich-text-editor"
+                        contenteditable="true"
+                        data-rich-editor
+                        role="textbox"
+                        aria-multiline="true"
+                    ></div>
+                    {{ form_widget(profile_form.skills) }}
+                    {{ form_errors(profile_form.skills) }}
+                </div>
+                <div class="actions">
+                    <button type="submit">Save Profile</button>
+                </div>
+            {{ form_end(profile_form) }}
+        </section>
+    </div>
+{% endblock %}

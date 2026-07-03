@@ -1,0 +1,261 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Notes | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title notes-page-title">
+        <div>
+            <span class="panel-label">Portal Notes</span>
+            <h1>Notes</h1>
+            <p class="muted">Capture private work notes, meeting follow-ups, and task ideas.</p>
+        </div>
+
+        <form class="notes-new-form" method="post" action="{{ path('app_notes_create') }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('note_create') }}">
+            <input type="hidden" name="title" value="Untitled note">
+            <button type="submit">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M12 5v14"></path>
+                    <path d="M5 12h14"></path>
+                </svg>
+                New Note
+            </button>
+        </form>
+    </div>
+
+    <div class="notes-workspace">
+        <aside class="notes-panel notes-notebook-panel" aria-label="Notebooks">
+            <div class="notes-panel-head">
+                <div>
+                    <h2>Notebooks</h2>
+                    <span>{{ notebooks|length }} book{{ notebooks|length == 1 ? '' : 's' }}</span>
+                </div>
+            </div>
+
+            <nav class="notes-notebook-list">
+                <a href="{{ path('app_notes_index') }}" class="{% if not current_notebook and not pinned_only and not note_query %}active{% endif %}">
+                    <span class="notes-book-thumb notes-book-thumb-all" aria-hidden="true"></span>
+                    <span>
+                        <strong>All Notes</strong>
+                        <em>{{ all_notes|length }} note{{ all_notes|length == 1 ? '' : 's' }}</em>
+                    </span>
+                </a>
+
+                <a href="{{ path('app_notes_index', {pinned: 1}) }}" class="{% if pinned_only %}active{% endif %}">
+                    <span class="notes-book-thumb notes-book-thumb-pinned" aria-hidden="true"></span>
+                    <span>
+                        <strong>Pinned</strong>
+                        <em>{{ pinned_count }} note{{ pinned_count == 1 ? '' : 's' }}</em>
+                    </span>
+                </a>
+
+                {% for notebook in notebooks %}
+                    <a href="{{ path('app_notes_index', {notebook: notebook}) }}" class="{% if current_notebook == notebook %}active{% endif %}">
+                        <span class="notes-book-thumb" aria-hidden="true">{{ notebook|slice(0, 1)|upper }}</span>
+                        <span>
+                            <strong>{{ notebook }}</strong>
+                            <em>{{ notebook_counts[notebook]|default(0) }} note{{ notebook_counts[notebook]|default(0) == 1 ? '' : 's' }}</em>
+                        </span>
+                    </a>
+                {% endfor %}
+            </nav>
+
+            <form class="notes-quick-create" method="post" action="{{ path('app_notes_create') }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('note_create') }}">
+                <label for="quick-note-title">Quick note</label>
+                <input id="quick-note-title" type="text" name="title" placeholder="Title">
+                <input type="text" name="notebook" placeholder="Notebook">
+                <button type="submit" class="secondary">Add Note</button>
+            </form>
+        </aside>
+
+        <section class="notes-panel notes-list-panel" aria-label="Notes list">
+            <div class="notes-panel-head notes-list-head">
+                <div>
+                    <h2>
+                        {% if pinned_only %}
+                            Pinned Notes
+                        {% elseif current_notebook %}
+                            {{ current_notebook }}
+                        {% elseif note_query %}
+                            Search Results
+                        {% else %}
+                            All Notes
+                        {% endif %}
+                    </h2>
+                    <span>{{ notes|length }} shown</span>
+                </div>
+                <form class="notes-search" method="get" action="{{ path('app_notes_index') }}">
+                    {% if current_notebook %}
+                        <input type="hidden" name="notebook" value="{{ current_notebook }}">
+                    {% endif %}
+                    {% if pinned_only %}
+                        <input type="hidden" name="pinned" value="1">
+                    {% endif %}
+                    <label for="notes-search-input">Search notes</label>
+                    <input id="notes-search-input" type="search" name="q" value="{{ note_query }}" placeholder="Search">
+                    <button type="submit" class="notes-icon-button" title="Search notes" aria-label="Search notes">
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <circle cx="11" cy="11" r="7"></circle>
+                            <path d="m16 16 4 4"></path>
+                        </svg>
+                    </button>
+                </form>
+            </div>
+
+            <div class="notes-list">
+                {% for note in notes %}
+                    {% set note_params = {id: note.id} %}
+                    {% if note_query %}
+                        {% set note_params = note_params|merge({q: note_query}) %}
+                    {% endif %}
+                    {% if current_notebook %}
+                        {% set note_params = note_params|merge({notebook: current_notebook}) %}
+                    {% endif %}
+                    {% if pinned_only %}
+                        {% set note_params = note_params|merge({pinned: 1}) %}
+                    {% endif %}
+
+                    <a class="notes-list-item{% if selected_note and selected_note.id == note.id %} active{% endif %}" href="{{ path('app_notes_index', note_params) }}">
+                        <span class="notes-list-pin{% if note.pinned %} is-pinned{% endif %}" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false">
+                                <path d="m14 4 6 6"></path>
+                                <path d="m12 6 6 6-7 7-3-3-4 4 4-4-3-3Z"></path>
+                            </svg>
+                        </span>
+                        <span class="notes-list-copy">
+                            <strong>{{ note.title }}</strong>
+                            <em>{{ note.body ? note.body|striptags|slice(0, 110) : 'No extra text yet.' }}</em>
+                            <small>{{ note.notebook ?: 'General' }} &middot; {{ note.updatedAt|date('d.m. H:i') }}</small>
+                        </span>
+                    </a>
+                {% else %}
+                    <div class="notes-list-empty">
+                        <strong>No notes found.</strong>
+                        <span>Try a different search or create a new note.</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="notes-panel notes-editor-panel" aria-label="Note editor">
+            {% if selected_note %}
+                <div class="notes-editor-toolbar">
+                    <div>
+                        <span class="panel-label">{{ selected_note.notebook ?: 'General' }}</span>
+                        <strong>Updated {{ selected_note.updatedAt|date('d.m.Y H:i') }}</strong>
+                    </div>
+
+                    <div class="notes-editor-actions">
+                        <form method="post" action="{{ path('app_notes_pin', {id: selected_note.id}) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('note_pin_' ~ selected_note.id) }}">
+                            <button type="submit" class="notes-icon-button{% if selected_note.pinned %} active{% endif %}" title="{{ selected_note.pinned ? 'Unpin note' : 'Pin note' }}" aria-label="{{ selected_note.pinned ? 'Unpin note' : 'Pin note' }}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="m14 4 6 6"></path>
+                                    <path d="m12 6 6 6-7 7-3-3-4 4 4-4-3-3Z"></path>
+                                </svg>
+                            </button>
+                        </form>
+
+                        <form method="post" action="{{ path('app_notes_delete', {id: selected_note.id}) }}" onsubmit="return confirm('Delete this note?')">
+                            <input type="hidden" name="_token" value="{{ csrf_token('note_delete_' ~ selected_note.id) }}">
+                            <button type="submit" class="notes-icon-button notes-delete-button" title="Delete note" aria-label="Delete note">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                    <path d="M3 6h18"></path>
+                                    <path d="M8 6V4h8v2"></path>
+                                    <path d="M6 6l1 15h10l1-15"></path>
+                                    <path d="M10 11v6"></path>
+                                    <path d="M14 11v6"></path>
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <form class="notes-editor-form" method="post" action="{{ path('app_notes_update', {id: selected_note.id}) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('note_update_' ~ selected_note.id) }}">
+
+                    <label for="note-title-{{ selected_note.id }}">Title</label>
+                    <input id="note-title-{{ selected_note.id }}" class="notes-title-input" type="text" name="title" value="{{ selected_note.title }}" placeholder="Note title" required>
+
+                    <div class="notes-editor-meta">
+                        <label for="note-notebook-{{ selected_note.id }}">
+                            <span>Notebook</span>
+                            <input id="note-notebook-{{ selected_note.id }}" type="text" name="notebook" value="{{ selected_note.notebook }}" list="note-notebooks" placeholder="General">
+                        </label>
+                        <label class="notes-pin-toggle">
+                            <input type="checkbox" name="isPinned" value="1" {% if selected_note.pinned %}checked{% endif %}>
+                            <span>Pinned</span>
+                        </label>
+                    </div>
+
+                    <label for="note-body-{{ selected_note.id }}">Body</label>
+                    <textarea id="note-body-{{ selected_note.id }}" class="notes-editor-textarea" name="body" rows="15" placeholder="Write your note here">{{ selected_note.body }}</textarea>
+
+                    <div class="notes-editor-footer">
+                        <span>Created {{ selected_note.createdAt|date('d.m.Y H:i') }}</span>
+                        <button type="submit">Save Note</button>
+                    </div>
+                </form>
+            {% else %}
+                <div class="notes-empty-state">
+                    <div class="notes-empty-mark" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M5 4h10l4 4v12H5Z"></path>
+                            <path d="M15 4v5h5"></path>
+                            <path d="M8 13h8"></path>
+                            <path d="M8 17h6"></path>
+                        </svg>
+                    </div>
+                    <h2>Start jotting down your ideas</h2>
+
+                    <div class="notes-empty-actions">
+                        <form method="post" action="{{ path('app_notes_create') }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('note_create') }}">
+                            <input type="hidden" name="title" value="New note">
+                            <button type="submit" class="secondary">
+                                <span class="notes-action-icon">W</span>
+                                Write
+                            </button>
+                        </form>
+                        <form method="post" action="{{ path('app_notes_create') }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('note_create') }}">
+                            <input type="hidden" name="title" value="Meeting notes">
+                            <input type="hidden" name="notebook" value="Meetings">
+                            <input type="hidden" name="body" value="Agenda&#10;&#10;Decisions&#10;&#10;Follow-ups">
+                            <button type="submit" class="secondary">
+                                <span class="notes-action-icon">M</span>
+                                Meeting
+                            </button>
+                        </form>
+                        <form method="post" action="{{ path('app_notes_create') }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('note_create') }}">
+                            <input type="hidden" name="title" value="To do">
+                            <input type="hidden" name="notebook" value="Tasks">
+                            <input type="hidden" name="body" value="- [ ] ">
+                            <button type="submit" class="secondary">
+                                <span class="notes-action-icon">T</span>
+                                To Do
+                            </button>
+                        </form>
+                        <form method="post" action="{{ path('app_notes_create') }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('note_create') }}">
+                            <input type="hidden" name="title" value="Idea">
+                            <input type="hidden" name="notebook" value="Ideas">
+                            <button type="submit" class="secondary">
+                                <span class="notes-action-icon">I</span>
+                                Idea
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+        </section>
+    </div>
+
+    <datalist id="note-notebooks">
+        {% for notebook in notebooks %}
+            <option value="{{ notebook }}">
+        {% endfor %}
+    </datalist>
+{% endblock %}

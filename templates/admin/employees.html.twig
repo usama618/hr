@@ -1,0 +1,90 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Users | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title">
+        <div>
+            <h1>Users</h1>
+            <p class="muted">Manage employees and super admins.</p>
+        </div>
+        <a class="button" href="{{ path('admin_employee_new') }}">Add User</a>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for employee in employees %}
+                    {% set is_self = app.user and app.user.id == employee.id %}
+                    <tr>
+                        <td>
+                            <div class="name-cell">
+                                {% include 'partials/_avatar.html.twig' with {user: employee, size: 'sm'} only %}
+                                <div>
+                                    <strong>{{ employee.fullName }}</strong>
+                                    {% if employee.jobTitle %}
+                                        <span class="muted">{{ employee.jobTitle }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>{{ employee.email }}</td>
+                        <td>{{ employee.role|role_label }}</td>
+                        <td>
+                            {% if employee.active %}
+                                <span class="badge badge-success">Active</span>
+                            {% else %}
+                                <span class="badge badge-danger">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ employee.createdAt|date('Y-m-d') }}</td>
+                        <td>
+                            <div class="table-actions">
+                                <a class="button button-secondary" href="{{ path('admin_employee_edit', {id: employee.id}) }}">Edit</a>
+
+                                {% if is_self %}
+                                    <span class="badge">You</span>
+                                {% else %}
+                                    {% if employee.active %}
+                                        <form method="post" action="{{ path('admin_employee_deactivate', {id: employee.id}) }}">
+                                            <input type="hidden" name="_token" value="{{ csrf_token('employee_deactivate_' ~ employee.id) }}">
+                                            <button type="submit" class="secondary">Deactivate</button>
+                                        </form>
+                                    {% else %}
+                                        <form method="post" action="{{ path('admin_employee_activate', {id: employee.id}) }}">
+                                            <input type="hidden" name="_token" value="{{ csrf_token('employee_activate_' ~ employee.id) }}">
+                                            <button type="submit" class="success">Activate</button>
+                                        </form>
+                                    {% endif %}
+
+                                    <form
+                                        method="post"
+                                        action="{{ path('admin_employee_delete', {id: employee.id}) }}"
+                                        onsubmit="return confirm('Remove {{ employee.fullName|e('js') }}? This cannot be undone.');"
+                                    >
+                                        <input type="hidden" name="_token" value="{{ csrf_token('employee_delete_' ~ employee.id) }}">
+                                        <button type="submit" class="danger">Remove</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="empty">No users yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Tasks | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title">
+        <div>
+            <h1>Tasks</h1>
+            <p class="muted">Assign tasks to employees under a project.</p>
+        </div>
+        <a class="button" href="{{ path('admin_task_new') }}">Add Task</a>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Project</th>
+                    <th>Assigned To</th>
+                    <th>Status</th>
+                    <th>Tracked</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                    <tr>
+                        <td>
+                            <strong>{{ task.title }}</strong>
+                            <div class="muted">
+                                {{ task.priority|status_label }} priority
+                                {% if task.comments|length %}
+                                    · {{ task.comments|length }} comments
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>{{ task.project.name }}</td>
+                        <td>{{ task.assignedTo ? task.assignedTo.fullName : 'Unassigned' }}</td>
+                        <td><span class="badge">{{ task.status|status_label }}</span></td>
+                        <td>{{ task.trackedSeconds|duration }}</td>
+                        <td>
+                            <div class="table-actions">
+                                <a class="button button-secondary" href="{{ path('admin_task_show', {id: task.id}) }}">View</a>
+                                <a class="button button-secondary" href="{{ path('admin_task_edit', {id: task.id}) }}">Edit</a>
+                                <form
+                                    method="post"
+                                    action="{{ path('admin_task_delete', {id: task.id}) }}"
+                                    onsubmit="return confirm('Remove task {{ task.title|e('js') }}? This will also remove its timer history.');"
+                                >
+                                    <input type="hidden" name="_token" value="{{ csrf_token('task_delete_' ~ task.id) }}">
+                                    <button type="submit" class="danger">Remove</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="empty">No tasks yet.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

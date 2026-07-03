@@ -1,0 +1,424 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}My Work | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title dashboard-greeting">
+        <div class="profile-greeting">
+            {% include 'partials/_avatar.html.twig' with {user: employee, size: 'lg'} only %}
+            <div>
+                <span class="panel-label">Today</span>
+                <h1>Good day, <a href="{{ path('employee_profile') }}">{{ employee.fullName }}</a></h1>
+                <p class="muted">
+                    {% if employee.jobTitle %}
+                        {{ employee.jobTitle }}
+                    {% else %}
+                        Track attendance, task time, assigned projects, and leave requests.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <nav class="workspace-tabs" aria-label="Employee dashboard sections" data-tabs="employee-work">
+        <button type="button" class="active" data-tab-target="overview" aria-selected="true">Overview</button>
+        <button type="button" data-tab-target="timeline" aria-selected="false">Week Timeline</button>
+        <button type="button" data-tab-target="tasks" aria-selected="false">Tasks</button>
+        <button type="button" data-tab-target="projects" aria-selected="false">Projects</button>
+        <button type="button" data-tab-target="attendance" aria-selected="false">Attendance</button>
+    </nav>
+
+    <section class="tab-panel" data-tabset="employee-work" data-tab-panel="overview">
+        <div class="grid grid-3 overview-metrics">
+            <article class="card">
+                <span class="panel-label">Today</span>
+                <h2>Attendance</h2>
+
+                {% if open_attendance %}
+                    <p class="muted">Checked in at {{ open_attendance.checkInAt|date('H:i') }}</p>
+                    {% set should_tick = active_break is null %}
+                    <div
+                        class="timer"
+                        {% if should_tick %}
+                            data-live-duration
+                            data-base-seconds="{{ open_attendance.workedSeconds }}"
+                            data-start-timestamp="{{ 'now'|date('U') }}"
+                        {% endif %}
+                    >{{ open_attendance.workedSeconds|duration }}</div>
+
+                    {% if active_break %}
+                        <p><span class="badge badge-warning">On break</span></p>
+                    {% else %}
+                        <p><span class="badge badge-success">Working</span></p>
+                    {% endif %}
+
+                    <div class="actions">
+                        {% if active_break %}
+                            <form method="post" action="{{ path('employee_break_resume') }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('attendance') }}">
+                                <button type="submit" class="success">Resume Work</button>
+                            </form>
+                        {% else %}
+                            <form method="post" action="{{ path('employee_break_start') }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('attendance') }}">
+                                <button type="submit" class="secondary">Start Break</button>
+                            </form>
+                        {% endif %}
+
+                        <form method="post" action="{{ path('employee_check_out') }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('attendance') }}">
+                            <button type="submit" class="danger">Check Out</button>
+                        </form>
+                    </div>
+                {% else %}
+                    <p class="muted">You are not checked in.</p>
+                    <form method="post" action="{{ path('employee_check_in') }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('attendance') }}">
+                        <button type="submit">Check In</button>
+                    </form>
+                {% endif %}
+            </article>
+
+            <a class="card overview-link-card" href="{{ path('employee_dashboard') }}?tab=tasks" aria-label="Open tasks">
+                <span class="panel-label">Assigned</span>
+                <h2>Tasks</h2>
+                <div class="metric">{{ tasks|length }}</div>
+                <p class="muted">Assigned or created by you.</p>
+                <div class="overview-list">
+                    {% for task in tasks|slice(0, 3) %}
+                        <div class="overview-list-item">
+                            <strong>{{ task.title }}</strong>
+                            <span>{{ task.project.name }} · {{ task.status|status_label }}</span>
+                        </div>
+                    {% else %}
+                        <p class="muted">No tasks yet.</p>
+                    {% endfor %}
+                </div>
+            </a>
+
+            <a class="card overview-link-card" href="{{ path('employee_dashboard') }}?tab=projects" aria-label="Open projects">
+                <span class="panel-label">Access</span>
+                <h2>Projects</h2>
+                <div class="metric">{{ projects|length }}</div>
+                <p class="muted">Projects available to you.</p>
+                <div class="overview-list">
+                    {% for project in projects|slice(0, 3) %}
+                        <div class="overview-list-item">
+                            <strong>{{ project.name }}</strong>
+                            <span>{{ project.clientName ?: project.status|status_label }}</span>
+                        </div>
+                    {% else %}
+                        <p class="muted">No project access yet.</p>
+                    {% endfor %}
+                </div>
+            </a>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tabset="employee-work" data-tab-panel="timeline" hidden>
+        <div class="card timeline-card">
+            <div class="timeline-head">
+                <div>
+                    <span class="panel-label">Work Schedule</span>
+                </div>
+                <form class="week-range-picker" method="get" action="{{ path('employee_dashboard') }}">
+                    <input type="hidden" name="tab" value="timeline">
+                    <label class="week-range" aria-label="Choose week">
+                        <span class="calendar-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false">
+                                <path d="M8 2v4"></path>
+                                <path d="M16 2v4"></path>
+                                <path d="M3 10h18"></path>
+                                <path d="M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z"></path>
+                            </svg>
+                        </span>
+                        <span>{{ week_timeline.start|date('d.m.Y') }} - {{ week_timeline.end|date('d.m.Y') }}</span>
+                        <input
+                            type="date"
+                            name="week"
+                            value="{{ week_timeline.selected_date|date('Y-m-d') }}"
+                            onchange="this.form.submit()"
+                        >
+                    </label>
+                </form>
+            </div>
+
+            <div class="week-timeline" aria-label="Current week attendance timeline">
+                {% for day in week_timeline.days %}
+                    <article class="timeline-day{% if day.is_today %} is-today{% endif %}{% if day.is_weekend %} is-weekend{% endif %}{% if day.has_open_entry %} is-active{% endif %}">
+                        <div class="day-dot"></div>
+                        {% if day.is_today %}
+                            <span class="today-chip">Today</span>
+                        {% endif %}
+                        <div class="day-label">
+                            <span>{{ day.date|date('D') }}</span>
+                            <strong>{{ day.date|date('d') }}</strong>
+                        </div>
+                        <span class="day-status">{{ day.status }}</span>
+                        <div class="day-time">{{ day.worked_seconds|duration }}</div>
+                        <dl class="day-meta">
+                            <div>
+                                <dt>In</dt>
+                                <dd>{{ day.first_check_in ? day.first_check_in|date('H:i') : '-' }}</dd>
+                            </div>
+                            <div>
+                                <dt>Out</dt>
+                                <dd>
+                                    {% if day.has_open_entry %}
+                                        Active
+                                    {% else %}
+                                        {{ day.last_check_out ? day.last_check_out|date('H:i') : '-' }}
+                                    {% endif %}
+                                </dd>
+                            </div>
+                            <div>
+                                <dt>Break</dt>
+                                <dd>{{ day.break_seconds|duration }}</dd>
+                            </div>
+                            <div>
+                                <dt>Sessions</dt>
+                                <dd>{{ day.entries|length }}</dd>
+                            </div>
+                        </dl>
+                    </article>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tabset="employee-work" data-tab-panel="tasks" hidden>
+        <div class="section-head">
+            <div>
+                <span class="panel-label">Work Items</span>
+            </div>
+        </div>
+
+        {% if task_form %}
+            <article class="card task-create-card">
+                <h3>Create Task</h3>
+                {{ form_start(task_form, {attr: {class: 'task-create-form'}}) }}
+                    <div class="form-grid">
+                        {{ form_row(task_form.project) }}
+                        {{ form_row(task_form.assignedTo) }}
+                    </div>
+                    {{ form_row(task_form.title) }}
+                    {{ form_row(task_form.description) }}
+                    <div class="form-grid">
+                        {{ form_row(task_form.priority) }}
+                        {{ form_row(task_form.estimatedMinutes) }}
+                    </div>
+                    <button type="submit">Create Task</button>
+                {{ form_end(task_form) }}
+            </article>
+        {% else %}
+            <article class="card task-create-card">
+                <h3>Create Task</h3>
+                <p class="muted">You need project access before creating tasks.</p>
+            </article>
+        {% endif %}
+
+        <div class="stack">
+            {% for task in tasks %}
+                {% set is_active_task = active_task_entry and active_task_entry.task.id == task.id %}
+                {% set is_assigned_to_me = task.assignedTo and task.assignedTo.id == employee.id %}
+                <article class="card task-card{% if task.status == 'completed' %} is-completed{% endif %}">
+                    <div class="page-title compact-title">
+                        <div>
+                            <h3>
+                                {% if task.status == 'completed' %}
+                                    <span class="task-complete-mark" aria-hidden="true"></span>
+                                {% endif %}
+                                {{ task.title }}
+                            </h3>
+                            <div class="muted">
+                                {{ task.project.name }} · {{ task.status|status_label }}
+                                {% if task.assignedTo %}
+                                    · Assigned to {{ task.assignedTo.fullName }}
+                                {% endif %}
+                                {% if task.comments|length %}
+                                    · {{ task.comments|length }} comments
+                                {% endif %}
+                            </div>
+                        </div>
+                        <span class="badge">{{ task.priority|status_label }}</span>
+                    </div>
+
+                    {% if task.description %}
+                        <p>{{ task.description }}</p>
+                    {% endif %}
+
+                    <p>
+                        Tracked:
+                        <strong
+                            {% if is_active_task %}
+                                data-live-duration
+                                data-base-seconds="{{ task.trackedSeconds }}"
+                                data-start-timestamp="{{ 'now'|date('U') }}"
+                            {% endif %}
+                        >{{ task.trackedSeconds|duration }}</strong>
+                    </p>
+
+                    <div class="actions">
+                        <a class="button button-secondary" href="{{ path('employee_task_show', {id: task.id}) }}">View</a>
+
+                        {% if is_assigned_to_me %}
+                            <form class="task-status-form" method="post" action="{{ path('employee_task_status', {id: task.id}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('task_status_' ~ task.id) }}">
+                                <input type="hidden" name="return_to" value="dashboard">
+                                <select class="task-status-select" id="task-status-{{ task.id }}" name="status" aria-label="Change task status" onchange="this.form.submit()">
+                                    {% for status_value, status_label in task_status_options %}
+                                        <option value="{{ status_value }}" {% if task.status == status_value %}selected{% endif %}>{{ status_label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        {% endif %}
+
+                        {% if is_assigned_to_me and task.status != 'completed' %}
+                            {% if is_active_task %}
+                                <form method="post" action="{{ path('employee_task_pause', {id: task.id}) }}">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('task_' ~ task.id) }}">
+                                    <button type="submit" class="secondary">Pause</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{{ path('employee_task_start', {id: task.id}) }}">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('task_' ~ task.id) }}">
+                                    <button type="submit">Start</button>
+                                </form>
+                            {% endif %}
+                        {% elseif not is_assigned_to_me %}
+                            {% if task.status == 'completed' %}
+                                <span class="badge badge-success">Completed</span>
+                            {% elseif task.assignedTo %}
+                                <span class="badge">Waiting on {{ task.assignedTo.fullName }}</span>
+                            {% else %}
+                                <span class="badge">Unassigned</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </article>
+            {% else %}
+                <div class="card">
+                    <p class="muted">No tasks yet.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tabset="employee-work" data-tab-panel="projects" hidden>
+        <div class="section-head">
+            <div>
+                <h2>Assigned Projects</h2>
+            </div>
+        </div>
+
+        <div class="grid grid-2 project-list">
+            {% for project in projects %}
+                <a class="card project-card" href="{{ path('employee_project_show', {id: project.id}) }}" aria-label="Open {{ project.name }}">
+                    <div class="page-title compact-title">
+                        <div>
+                            <h3>{{ project.name }}</h3>
+                            {% if project.clientName %}
+                                <p class="muted">{{ project.clientName }}</p>
+                            {% endif %}
+                        </div>
+                        <span class="badge">{{ project.status|status_label }}</span>
+                    </div>
+
+                    {% if project.description %}
+                        <p>{{ project.description }}</p>
+                    {% endif %}
+
+                    <dl class="detail-list">
+                        <div>
+                            <dt>Start</dt>
+                            <dd>{{ project.startDate ? project.startDate|date('d.m.Y') : 'Not set' }}</dd>
+                        </div>
+                        <div>
+                            <dt>Deadline</dt>
+                            <dd>{{ project.deadline ? project.deadline|date('d.m.Y') : 'No deadline' }}</dd>
+                        </div>
+                    </dl>
+                    <span class="project-card-cta">Open project</span>
+                </a>
+            {% else %}
+                <div class="card">
+                    <p class="muted">No project access yet.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="tab-panel" data-tabset="employee-work" data-tab-panel="attendance" hidden>
+        <div class="leave-grid">
+            <article class="card">
+                <span class="panel-label">Leave</span>
+                <h2>Apply for Leave</h2>
+
+                {{ form_start(leave_form) }}
+                    {{ form_row(leave_form.leaveType) }}
+                    <div class="form-grid">
+                        {{ form_row(leave_form.startDate) }}
+                        {{ form_row(leave_form.endDate) }}
+                    </div>
+                    {{ form_row(leave_form.reason) }}
+                    <button type="submit">Submit Request</button>
+                {{ form_end(leave_form) }}
+            </article>
+
+            <article class="card">
+                <span class="panel-label">History</span>
+                <h2>Leave Requests</h2>
+
+                <div class="request-list">
+                    {% for request in leave_requests %}
+                        <div class="request-item">
+                            <div>
+                                <strong>{{ request.leaveType|status_label }}</strong>
+                                <p class="muted">{{ request.startDate|date('d.m.Y') }} - {{ request.endDate|date('d.m.Y') }} · {{ request.days }} day{{ request.days == 1 ? '' : 's' }}</p>
+                            </div>
+                            <span class="badge{% if request.status == 'approved' %} badge-success{% elseif request.status == 'rejected' %} badge-danger{% else %} badge-warning{% endif %}">
+                                {{ request.status|status_label }}
+                            </span>
+                        </div>
+                    {% else %}
+                        <p class="muted">No leave requests yet.</p>
+                    {% endfor %}
+                </div>
+            </article>
+        </div>
+
+        <section class="card attendance-history">
+            <span class="panel-label">Attendance</span>
+            <h2>Recent Attendance</h2>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Check In</th>
+                            <th>Check Out</th>
+                            <th>Break</th>
+                            <th>Worked</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in recent_attendance %}
+                            <tr>
+                                <td>{{ entry.checkInAt|date('Y-m-d') }}</td>
+                                <td>{{ entry.checkInAt|date('H:i') }}</td>
+                                <td>{{ entry.checkOutAt ? entry.checkOutAt|date('H:i') : 'Active' }}</td>
+                                <td>{{ entry.breakSeconds|duration }}</td>
+                                <td>{{ entry.workedSeconds|duration }}</td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="empty">No attendance history yet.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </section>
+{% endblock %}

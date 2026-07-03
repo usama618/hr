@@ -1,0 +1,40 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Notifications | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title">
+        <div>
+            <h1>Notifications</h1>
+            <p class="muted">{{ unread_count }} unread</p>
+        </div>
+
+        {% if unread_count > 0 %}
+            <form method="post" action="{{ path('app_notifications_mark_all_read') }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('notifications_mark_all_read') }}">
+                <button type="submit" class="secondary">Mark All Read</button>
+            </form>
+        {% endif %}
+    </div>
+
+    <section class="notification-page-list">
+        {% for notification in notifications %}
+            <a
+                class="notification-page-item{% if not notification.read %} is-unread{% endif %}"
+                href="{{ path('app_notification_open', {id: notification.id}) }}"
+            >
+                <span class="notification-status-dot" aria-hidden="true"></span>
+                <span class="notification-page-copy">
+                    <strong>{{ notification.title }}</strong>
+                    <span>{{ notification.body }}</span>
+                    <small>{{ notification.createdAt|date('Y-m-d H:i') }}</small>
+                </span>
+                <span class="badge">{{ notification.read ? 'Read' : 'Unread' }}</span>
+            </a>
+        {% else %}
+            <article class="card">
+                <p class="muted">No notifications yet.</p>
+            </article>
+        {% endfor %}
+    </section>
+{% endblock %}

@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{% block title %}Waldbyte HR{% endblock %}</title>
+        <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
+        <script>
+            (() => {
+                try {
+                    const savedTheme = localStorage.getItem('waldbyte-theme');
+                    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    document.documentElement.dataset.theme = savedTheme || (prefersDark ? 'dark' : 'light');
+                } catch (error) {
+                    document.documentElement.dataset.theme = 'light';
+                }
+            })();
+        </script>
+        <link rel="stylesheet" href="{{ asset('styles.css') }}?v=waldbyte-hr-15">
+        {% block stylesheets %}
+        {% endblock %}
+
+        {% block javascripts %}
+        {% endblock %}
+
+    </head>
+    <body>
+        {% if app.user %}
+            {% set current_route = app.request.attributes.get('_route')|default('') %}
+            {% set notification_nav = notification_summary(app.user) %}
+            {% set latest_notification = notification_nav.latest|first %}
+            <header class="topbar">
+                <a class="brand" href="{{ path('app_dashboard') }}">
+                    WALD<span>BYTE</span><em>HR</em>
+                </a>
+                <nav>
+                    {% if is_granted('ROLE_SUPER_ADMIN') %}
+                        <a href="{{ path('admin_dashboard') }}">Dashboard</a>
+                        <a href="{{ path('admin_employees') }}">Users</a>
+                        <a href="{{ path('admin_projects') }}">Projects</a>
+                        <a href="{{ path('admin_tasks') }}">Tasks</a>
+                        <a href="{{ path('admin_reports') }}">Reports</a>
+                    {% endif %}
+                    <a href="{{ path('app_notes_index') }}" class="{% if current_route starts with 'app_notes_' %}active{% endif %}">Notes</a>
+                </nav>
+                <div class="account">
+                    <button
+                        type="button"
+                        class="theme-toggle"
+                        data-theme-toggle
+                        aria-label="Switch to dark mode"
+                        aria-pressed="false"
+                        title="Switch theme"
+                    >
+                        <svg class="theme-toggle-sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <circle cx="12" cy="12" r="4"></circle>
+                            <path d="M12 2v2"></path>
+                            <path d="M12 20v2"></path>
+                            <path d="m4.93 4.93 1.41 1.41"></path>
+                            <path d="m17.66 17.66 1.41 1.41"></path>
+                            <path d="M2 12h2"></path>
+                            <path d="M20 12h2"></path>
+                            <path d="m6.34 17.66-1.41 1.41"></path>
+                            <path d="m19.07 4.93-1.41 1.41"></path>
+                        </svg>
+                        <svg class="theme-toggle-moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5Z"></path>
+                        </svg>
+                    </button>
+
+                    <div
+                        class="notification-menu"
+                        data-notifications
+                        data-notification-poll-url="{{ path('app_notifications_poll') }}"
+                        data-notification-latest-id="{{ latest_notification ? latest_notification.id : 0 }}"
+                    >
+                        <button
+                            type="button"
+                            class="notification-trigger"
+                            aria-label="Notifications"
+                            aria-expanded="false"
+                            data-notification-toggle
+                        >
+                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                <path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16l-2-2Z"></path>
+                                <path d="M9.5 20a2.5 2.5 0 0 0 5 0"></path>
+                            </svg>
+                            <span
+                                class="notification-badge"
+                                data-notification-badge
+                                {% if notification_nav.unread_count < 1 %}hidden{% endif %}
+                            >{{ notification_nav.unread_count > 99 ? '99+' : notification_nav.unread_count }}</span>
+                        </button>
+
+                        <div class="notification-popover" data-notification-popover hidden>
+                            <div class="notification-popover-head">
+                                <strong>Notifications</strong>
+                                <span data-notification-count {% if notification_nav.unread_count < 1 %}hidden{% endif %}>
+                                    {{ notification_nav.unread_count }} unread
+                                </span>
+                            </div>
+
+                            <div class="notification-preview-list" data-notification-list>
+                                {% for notification in notification_nav.latest %}
+                                    <a
+                                        class="notification-item{% if not notification.read %} is-unread{% endif %}"
+                                        href="{{ path('app_notification_open', {id: notification.id}) }}"
+                                    >
+                                        <span class="notification-status-dot" aria-hidden="true"></span>
+                                        <span>
+                                            <strong>{{ notification.title }}</strong>
+                                            <em>{{ notification.body }}</em>
+                                            <small>{{ notification.createdAt|date('d.m. H:i') }}</small>
+                                        </span>
+                                    </a>
+                                {% else %}
+                                    <p class="notification-empty" data-notification-empty>No notifications yet.</p>
+                                {% endfor %}
+                            </div>
+
+                            <div class="notification-popover-foot">
+                                <a href="{{ path('app_notifications') }}">View all notifications</a>
+                                <button type="button" class="link-button" data-desktop-notifications-enable hidden>Enable desktop alerts</button>
+                                {% if notification_nav.unread_count > 0 %}
+                                    <form method="post" action="{{ path('app_notifications_mark_all_read') }}">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('notifications_mark_all_read') }}">
+                                        <button type="submit" class="link-button">Mark all read</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    {% include 'partials/_avatar.html.twig' with {user: app.user, size: 'sm'} only %}
+                    {% if is_granted('ROLE_EMPLOYEE') and not is_granted('ROLE_SUPER_ADMIN') %}
+                        <a class="account-name" href="{{ path('employee_profile') }}">{{ app.user.fullName }}</a>
+                    {% else %}
+                        <span class="account-name">{{ app.user.fullName }}</span>
+                    {% endif %}
+                    <a href="{{ path('app_logout') }}">Logout</a>
+                </div>
+            </header>
+        {% endif %}
+
+        <main class="page{% if not app.user %} page-auth{% endif %}">
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="flash flash-{{ label }}">{{ message }}</div>
+                {% endfor %}
+            {% endfor %}
+
+            {% block body %}{% endblock %}
+        </main>
+
+        <script>
+            function formatDuration(seconds) {
+                seconds = Math.max(0, Math.floor(seconds));
+                const hours = String(Math.floor(seconds / 3600)).padStart(2, '0');
+                const minutes = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+                const rest = String(seconds % 60).padStart(2, '0');
+                return `${hours}:${minutes}:${rest}`;
+            }
+
+            document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+                const applyTheme = (theme) => {
+                    document.documentElement.dataset.theme = theme;
+                    button.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+                    button.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+                    button.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+                };
+
+                applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+
+                button.addEventListener('click', () => {
+                    const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+                    try {
+                        localStorage.setItem('waldbyte-theme', nextTheme);
+                    } catch (error) {
+                        // Ignore storage failures and keep the in-page toggle working.
+                    }
+                    applyTheme(nextTheme);
+                });
+            });
+
+            document.querySelectorAll('[data-live-duration]').forEach((node) => {
+                const base = Number(node.dataset.baseSeconds || 0);
+                const start = Number(node.dataset.startTimestamp || 0);
+                if (!start) {
+                    return;
+                }
+
+                const tick = () => {
+                    const elapsed = Math.floor(Date.now() / 1000) - start;
+                    node.textContent = formatDuration(base + elapsed);
+                };
+
+                tick();
+                setInterval(tick, 1000);
+            });
+
+            document.querySelectorAll('[data-tabs]').forEach((tabset) => {
+                const tabs = Array.from(tabset.querySelectorAll('[data-tab-target]'));
+                const group = tabset.dataset.tabs;
+                const panels = Array.from(document.querySelectorAll(`[data-tabset="${group}"][data-tab-panel]`));
+
+                const activate = (target, updateUrl = true) => {
+                    if (!tabs.some((tab) => tab.dataset.tabTarget === target)) {
+                        return;
+                    }
+
+                    tabs.forEach((tab) => {
+                        const isActive = tab.dataset.tabTarget === target;
+                        tab.classList.toggle('active', isActive);
+                        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                    });
+
+                    panels.forEach((panel) => {
+                        panel.hidden = panel.dataset.tabPanel !== target;
+                    });
+
+                    if (updateUrl) {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('tab', target);
+                        window.history.replaceState({}, '', url);
+                    }
+                };
+
+                tabs.forEach((tab) => {
+                    tab.addEventListener('click', () => activate(tab.dataset.tabTarget));
+                });
+
+                const selectedTab = new URLSearchParams(window.location.search).get('tab');
+                activate(selectedTab || tabs[0]?.dataset.tabTarget || 'overview', false);
+            });
+
+            document.querySelectorAll('[data-notifications]').forEach((menu) => {
+                const trigger = menu.querySelector('[data-notification-toggle]');
+                const popover = menu.querySelector('[data-notification-popover]');
+                const badge = menu.querySelector('[data-notification-badge]');
+                const countLabel = menu.querySelector('[data-notification-count]');
+                const list = menu.querySelector('[data-notification-list]');
+                const enableDesktopButton = menu.querySelector('[data-desktop-notifications-enable]');
+                const pollUrl = menu.dataset.notificationPollUrl;
+                let latestNotificationId = Number(menu.dataset.notificationLatestId || 0);
+                if (!trigger || !popover) {
+                    return;
+                }
+
+                const updateUnreadCount = (count) => {
+                    const normalizedCount = Math.max(0, Number(count || 0));
+                    const label = normalizedCount > 99 ? '99+' : String(normalizedCount);
+
+                    if (badge) {
+                        badge.textContent = label;
+                        badge.hidden = normalizedCount < 1;
+                    }
+
+                    if (countLabel) {
+                        countLabel.textContent = `${normalizedCount} unread`;
+                        countLabel.hidden = normalizedCount < 1;
+                    }
+                };
+
+                const appendNotificationPreview = (item) => {
+                    if (!list) {
+                        return;
+                    }
+
+                    list.querySelector('[data-notification-empty]')?.remove();
+
+                    const link = document.createElement('a');
+                    link.className = 'notification-item is-unread';
+                    link.href = item.url;
+
+                    const dot = document.createElement('span');
+                    dot.className = 'notification-status-dot';
+                    dot.setAttribute('aria-hidden', 'true');
+
+                    const copy = document.createElement('span');
+                    const title = document.createElement('strong');
+                    const body = document.createElement('em');
+                    const time = document.createElement('small');
+                    title.textContent = item.title;
+                    body.textContent = item.body;
+                    time.textContent = item.createdAt;
+
+                    copy.append(title, body, time);
+                    link.append(dot, copy);
+                    list.prepend(link);
+
+                    while (list.querySelectorAll('.notification-item').length > 6) {
+                        list.querySelector('.notification-item:last-of-type')?.remove();
+                    }
+                };
+
+                const updateDesktopPermissionButton = () => {
+                    if (!enableDesktopButton || !('Notification' in window)) {
+                        return;
+                    }
+
+                    enableDesktopButton.hidden = Notification.permission === 'granted';
+                    enableDesktopButton.textContent = Notification.permission === 'denied'
+                        ? 'Desktop alerts blocked'
+                        : 'Enable desktop alerts';
+                    enableDesktopButton.disabled = Notification.permission === 'denied';
+                };
+
+                const showDesktopNotification = (item) => {
+                    if (!('Notification' in window) || Notification.permission !== 'granted') {
+                        return;
+                    }
+
+                    const desktopNotification = new Notification(`Waldbyte HR: ${item.title}`, {
+                        body: item.body,
+                        tag: `waldbyte-notification-${item.id}`,
+                    });
+
+                    desktopNotification.onclick = () => {
+                        window.focus();
+                        window.location.href = item.url;
+                        desktopNotification.close();
+                    };
+                };
+
+                const pollNotifications = async () => {
+                    if (!pollUrl) {
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`${pollUrl}?after=${encodeURIComponent(latestNotificationId)}`, {
+                            credentials: 'same-origin',
+                            headers: {
+                                Accept: 'application/json',
+                            },
+                        });
+
+                        if (!response.ok) {
+                            return;
+                        }
+
+                        const payload = await response.json();
+                        updateUnreadCount(payload.unreadCount);
+
+                        (payload.notifications || []).forEach((item) => {
+                            latestNotificationId = Math.max(latestNotificationId, Number(item.id || 0));
+                            appendNotificationPreview(item);
+                            showDesktopNotification(item);
+                        });
+
+                        latestNotificationId = Math.max(latestNotificationId, Number(payload.latestId || 0));
+                        menu.dataset.notificationLatestId = String(latestNotificationId);
+                    } catch (error) {
+                        // A failed poll should not interrupt the rest of the portal UI.
+                    }
+                };
+
+                updateDesktopPermissionButton();
+
+                if (enableDesktopButton && 'Notification' in window) {
+                    enableDesktopButton.addEventListener('click', async (event) => {
+                        event.stopPropagation();
+                        if (Notification.permission === 'default') {
+                            await Notification.requestPermission();
+                        }
+                        updateDesktopPermissionButton();
+                    });
+                }
+
+                if (pollUrl) {
+                    window.setInterval(pollNotifications, 30000);
+                    document.addEventListener('visibilitychange', () => {
+                        if (!document.hidden) {
+                            pollNotifications();
+                        }
+                    });
+                }
+
+                const close = () => {
+                    popover.hidden = true;
+                    trigger.setAttribute('aria-expanded', 'false');
+                };
+
+                trigger.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const isOpen = !popover.hidden;
+                    document.querySelectorAll('[data-notification-popover]').forEach((node) => {
+                        node.hidden = true;
+                    });
+                    popover.hidden = isOpen;
+                    trigger.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+                });
+
+                popover.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
+
+                document.addEventListener('click', close);
+                document.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape') {
+                        close();
+                    }
+                });
+            });
+
+            document.querySelectorAll('[data-avatar-cropper]').forEach((cropper) => {
+                const input = cropper.querySelector('[data-crop-input]');
+                const output = cropper.querySelector('[data-crop-output]');
+                const frame = cropper.querySelector('[data-crop-frame]');
+                const image = cropper.querySelector('[data-crop-image]');
+                const placeholder = cropper.querySelector('[data-crop-placeholder]');
+                const controls = cropper.querySelector('[data-crop-controls]');
+                const zoom = cropper.querySelector('[data-crop-zoom]');
+                const removeInput = document.querySelector('input[name$="[removeProfileImage]"]');
+
+                if (!input || !output || !frame || !image || !controls || !zoom) {
+                    return;
+                }
+
+                const state = {
+                    baseScale: 1,
+                    scale: 1,
+                    offsetX: 0,
+                    offsetY: 0,
+                    exportEnabled: false,
+                    dragging: false,
+                    startX: 0,
+                    startY: 0,
+                    startOffsetX: 0,
+                    startOffsetY: 0,
+                };
+
+                const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+                const frameSize = () => frame.getBoundingClientRect().width || 160;
+
+                const constrainOffsets = () => {
+                    if (!image.naturalWidth || !image.naturalHeight) {
+                        return;
+                    }
+
+                    const size = frameSize();
+                    const width = image.naturalWidth * state.baseScale * state.scale;
+                    const height = image.naturalHeight * state.baseScale * state.scale;
+                    const maxX = Math.max(0, (width - size) / 2);
+                    const maxY = Math.max(0, (height - size) / 2);
+                    state.offsetX = clamp(state.offsetX, -maxX, maxX);
+                    state.offsetY = clamp(state.offsetY, -maxY, maxY);
+                };
+
+                const exportCrop = () => {
+                    if (!state.exportEnabled || !image.complete || !image.naturalWidth) {
+                        return;
+                    }
+
+                    const size = frameSize();
+                    const canvasSize = 512;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = canvasSize;
+                    canvas.height = canvasSize;
+                    const context = canvas.getContext('2d');
+                    if (!context) {
+                        return;
+                    }
+                    const ratio = canvasSize / size;
+                    const width = image.naturalWidth * state.baseScale * state.scale;
+                    const height = image.naturalHeight * state.baseScale * state.scale;
+                    const x = (size / 2 - width / 2 + state.offsetX) * ratio;
+                    const y = (size / 2 - height / 2 + state.offsetY) * ratio;
+
+                    context.clearRect(0, 0, canvasSize, canvasSize);
+                    context.save();
+                    context.beginPath();
+                    context.arc(canvasSize / 2, canvasSize / 2, canvasSize / 2, 0, Math.PI * 2);
+                    context.clip();
+                    context.drawImage(image, x, y, width * ratio, height * ratio);
+                    context.restore();
+
+                    output.value = canvas.toDataURL('image/png');
+                };
+
+                const render = () => {
+                    constrainOffsets();
+                    image.style.width = `${image.naturalWidth * state.baseScale}px`;
+                    image.style.height = `${image.naturalHeight * state.baseScale}px`;
+                    image.style.transform = `translate(-50%, -50%) translate(${state.offsetX}px, ${state.offsetY}px) scale(${state.scale})`;
+                    exportCrop();
+                };
+
+                const prepareImage = (exportEnabled) => {
+                    const size = frameSize();
+                    state.baseScale = Math.max(size / image.naturalWidth, size / image.naturalHeight);
+                    state.scale = 1;
+                    state.offsetX = 0;
+                    state.offsetY = 0;
+                    state.exportEnabled = exportEnabled;
+                    zoom.value = '1';
+                    image.hidden = false;
+                    if (placeholder) {
+                        placeholder.hidden = true;
+                    }
+                    controls.hidden = !exportEnabled;
+                    render();
+                };
+
+                input.addEventListener('change', () => {
+                    const file = input.files && input.files[0];
+                    if (!file || !file.type.startsWith('image/')) {
+                        return;
+                    }
+
+                    if (removeInput) {
+                        removeInput.checked = false;
+                    }
+
+                    const objectUrl = URL.createObjectURL(file);
+                    image.onload = () => {
+                        prepareImage(true);
+                        URL.revokeObjectURL(objectUrl);
+                    };
+                    image.src = objectUrl;
+                });
+
+                zoom.addEventListener('input', () => {
+                    state.scale = Number(zoom.value || 1);
+                    render();
+                });
+
+                frame.addEventListener('pointerdown', (event) => {
+                    if (image.hidden || controls.hidden) {
+                        return;
+                    }
+
+                    state.dragging = true;
+                    state.startX = event.clientX;
+                    state.startY = event.clientY;
+                    state.startOffsetX = state.offsetX;
+                    state.startOffsetY = state.offsetY;
+                    frame.setPointerCapture(event.pointerId);
+                });
+
+                frame.addEventListener('pointermove', (event) => {
+                    if (!state.dragging) {
+                        return;
+                    }
+
+                    state.offsetX = state.startOffsetX + event.clientX - state.startX;
+                    state.offsetY = state.startOffsetY + event.clientY - state.startY;
+                    render();
+                });
+
+                ['pointerup', 'pointercancel'].forEach((eventName) => {
+                    frame.addEventListener(eventName, (event) => {
+                        state.dragging = false;
+                        if (frame.hasPointerCapture(event.pointerId)) {
+                            frame.releasePointerCapture(event.pointerId);
+                        }
+                    });
+                });
+            });
+
+            document.querySelectorAll('[data-rich-text]').forEach((wrapper) => {
+                const editor = wrapper.querySelector('[data-rich-editor]');
+                const source = wrapper.querySelector('[data-rich-source]');
+                const form = wrapper.closest('form');
+
+                if (!editor || !source || !form) {
+                    return;
+                }
+
+                editor.innerHTML = source.value || '';
+
+                const sync = () => {
+                    source.value = editor.innerHTML.trim();
+                };
+
+                wrapper.querySelectorAll('[data-rich-command]').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        editor.focus();
+                        document.execCommand(button.dataset.richCommand, false, null);
+                        sync();
+                    });
+                });
+
+                editor.addEventListener('input', sync);
+                editor.addEventListener('blur', sync);
+                editor.addEventListener('paste', (event) => {
+                    event.preventDefault();
+                    const text = event.clipboardData?.getData('text/plain') || '';
+                    document.execCommand('insertText', false, text);
+                    sync();
+                });
+                form.addEventListener('submit', sync);
+            });
+        </script>
+    </body>
+</html>

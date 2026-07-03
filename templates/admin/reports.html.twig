@@ -1,0 +1,303 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Reports | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="page-title">
+        <div>
+            <h1>Reports</h1>
+            <p class="muted">Admin-only attendance and timer details.</p>
+        </div>
+    </div>
+
+    <section class="grid grid-3">
+        {% for project, seconds in project_totals %}
+            <article class="card">
+                <h3>{{ project }}</h3>
+                <div class="metric">{{ seconds|duration }}</div>
+            </article>
+        {% else %}
+            <article class="card">
+                <h3>Project Time</h3>
+                <p class="muted">No tracked time yet.</p>
+            </article>
+        {% endfor %}
+    </section>
+
+    <section style="margin-top: 20px;">
+        <h2>Leave Requests</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Type</th>
+                        <th>Dates</th>
+                        <th>Days</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for leave in leave_requests %}
+                        <tr>
+                            <td>{{ leave.employee.fullName }}</td>
+                            <td>{{ leave.leaveType|status_label }}</td>
+                            <td>{{ leave.startDate|date('Y-m-d') }} - {{ leave.endDate|date('Y-m-d') }}</td>
+                            <td>{{ leave.days }}</td>
+                            <td>
+                                <span class="badge{% if leave.status == 'approved' %} badge-success{% elseif leave.status == 'rejected' %} badge-danger{% else %} badge-warning{% endif %}">
+                                    {{ leave.status|status_label }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if leave.status == 'pending' %}
+                                    <div class="actions">
+                                        <form method="post" action="{{ path('admin_leave_status', {id: leave.id, status: 'approved'}) }}">
+                                            <input type="hidden" name="_token" value="{{ csrf_token('leave_' ~ leave.id ~ '_approved') }}">
+                                            <button type="submit" class="success">Approve</button>
+                                        </form>
+                                        <form method="post" action="{{ path('admin_leave_status', {id: leave.id, status: 'rejected'}) }}">
+                                            <input type="hidden" name="_token" value="{{ csrf_token('leave_' ~ leave.id ~ '_rejected') }}">
+                                            <button type="submit" class="danger">Reject</button>
+                                        </form>
+                                    </div>
+                                {% else %}
+                                    <span class="muted">{{ leave.reviewedAt ? leave.reviewedAt|date('Y-m-d H:i') : '-' }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="empty">No leave requests yet.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section style="margin-top: 20px;">
+        <div class="section-head">
+            <div>
+                <h2>Attendance by Day</h2>
+                <p class="muted">
+                    {{ attendance_range_start|date('Y-m-d') }} - {{ attendance_range_end|date('Y-m-d') }}
+                </p>
+            </div>
+            <form class="report-filter" method="get" action="{{ path('admin_reports') }}">
+                <label>
+                    <span>From</span>
+                    <input type="date" name="from" value="{{ attendance_range_start|date('Y-m-d') }}">
+                </label>
+                <label>
+                    <span>To</span>
+                    <input type="date" name="to" value="{{ attendance_range_end|date('Y-m-d') }}">
+                </label>
+                <button type="submit">Apply</button>
+            </form>
+        </div>
+
+        <div class="table-wrap">
+            <table class="attendance-days-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Employee</th>
+                        <th>Sessions</th>
+                        <th>First In</th>
+                        <th>Last Out</th>
+                        <th>Break</th>
+                        <th>Worked</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in attendance_day_rows %}
+                        <tr>
+                            <td>{{ row.date|date('Y-m-d') }}</td>
+                            <td>
+                                <div class="name-cell">
+                                    {% include 'partials/_avatar.html.twig' with {user: row.employee, size: 'sm'} only %}
+                                    <div>
+                                        <strong>{{ row.employee.fullName }}</strong>
+                                        {% if row.employee.jobTitle %}
+                                            <span class="muted">{{ row.employee.jobTitle }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="session-list">
+                                    {% for session in row.sessions %}
+                                        <div class="session-line">
+                                            <strong>{{ session.check_in|date('H:i') }}</strong>
+                                            <span>-</span>
+                                            {% if session.check_out %}
+                                                <strong>{{ session.check_out|date('H:i') }}</strong>
+                                            {% else %}
+                                                <span class="badge badge-success">Active</span>
+                                            {% endif %}
+                                            <span class="muted">
+                                                {{ session.worked_seconds|duration }} worked,
+                                                {{ session.break_seconds|duration }} break
+                                            </span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td>{{ row.first_check_in ? row.first_check_in|date('H:i') : '-' }}</td>
+                            <td>
+                                {% if row.has_open_entry %}
+                                    Active
+                                {% else %}
+                                    {{ row.last_check_out ? row.last_check_out|date('H:i') : '-' }}
+                                {% endif %}
+                            </td>
+                            <td>{{ row.break_seconds|duration }}</td>
+                            <td>{{ row.worked_seconds|duration }}</td>
+                            <td>
+                                <span class="badge{% if row.status == 'Active' %} badge-success{% endif %}">
+                                    {{ row.status }}
+                                </span>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="8" class="empty">No attendance entries in this date range.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section style="margin-top: 20px;">
+        <div class="section-head">
+            <div>
+                <h2>Daily Attendance Timeline</h2>
+                <p class="muted">{{ report_date|date('Y-m-d') }}</p>
+            </div>
+            <div class="timeline-legend" aria-label="Timeline event legend">
+                <span><i class="timeline-dot event-check-in"></i>Check in</span>
+                <span><i class="timeline-dot event-break-start"></i>Break start</span>
+                <span><i class="timeline-dot event-break-end"></i>Break end</span>
+                <span><i class="timeline-dot event-check-out"></i>Check out</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="attendance-timeline-table">
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Timeline</th>
+                        <th>First In</th>
+                        <th>Last Out</th>
+                        <th>Break</th>
+                        <th>Worked</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for timeline in attendance_timelines %}
+                        <tr>
+                            <td>
+                                <div class="name-cell">
+                                    {% include 'partials/_avatar.html.twig' with {user: timeline.employee, size: 'sm'} only %}
+                                    <div>
+                                        <strong>{{ timeline.employee.fullName }}</strong>
+                                        {% if timeline.employee.jobTitle %}
+                                            <span class="muted">{{ timeline.employee.jobTitle }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="daily-timeline" aria-label="{{ timeline.employee.fullName }} daily attendance timeline">
+                                    <div class="daily-timeline-scale">
+                                        <span>00:00</span>
+                                        <span>06:00</span>
+                                        <span>12:00</span>
+                                        <span>18:00</span>
+                                        <span>24:00</span>
+                                    </div>
+                                    <div class="daily-timeline-line">
+                                        {% for event in timeline.events %}
+                                            <span
+                                                class="timeline-dot event-{{ event.type }}"
+                                                style="left: {{ event.position }}%;"
+                                                title="{{ event.time_label }} · {{ event.label }}"
+                                                aria-label="{{ event.time_label }} {{ event.label }}"
+                                            ></span>
+                                        {% endfor %}
+                                    </div>
+                                    {% if timeline.events %}
+                                        <div class="timeline-events">
+                                            {% for event in timeline.events %}
+                                                <span><strong>{{ event.time_label }}</strong> {{ event.label }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <p class="muted no-timeline-events">No attendance events today.</p>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>{{ timeline.first_check_in ? timeline.first_check_in|date('H:i') : '-' }}</td>
+                            <td>
+                                {% if timeline.has_open_entry %}
+                                    Active
+                                {% else %}
+                                    {{ timeline.last_check_out ? timeline.last_check_out|date('H:i') : '-' }}
+                                {% endif %}
+                            </td>
+                            <td>{{ timeline.break_seconds|duration }}</td>
+                            <td>{{ timeline.worked_seconds|duration }}</td>
+                            <td>
+                                <span class="badge{% if timeline.status == 'Active' %} badge-success{% elseif timeline.status == 'No entry' %} badge-warning{% endif %}">
+                                    {{ timeline.status }}
+                                </span>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="empty">No employees yet.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section style="margin-top: 20px;">
+        <h2>Recent Task Timers</h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Project</th>
+                        <th>Task</th>
+                        <th>Started</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in task_time_entries %}
+                        <tr>
+                            <td>{{ entry.employee.fullName }}</td>
+                            <td>{{ entry.task.project.name }}</td>
+                            <td>{{ entry.task.title }}</td>
+                            <td>{{ entry.startedAt|date('Y-m-d H:i') }}</td>
+                            <td>{{ entry.seconds|duration }}</td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="empty">No task timers yet.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+{% endblock %}
