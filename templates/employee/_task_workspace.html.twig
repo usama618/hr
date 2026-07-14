@@ -1,0 +1,33 @@
+<div class="page-title task-workspace-title employee-task-workspace-title">
+    <div><span class="panel-label">Work Management</span><h2>Tasks</h2><p class="muted">Choose a project and organize its tasks and subtasks.</p></div>
+    {% if selected_task_project and task_form %}<a class="button" href="{{ path('employee_dashboard', {tab: 'tasks', project: selected_task_project.id, create: 1}) }}">Add Task</a>{% endif %}
+</div>
+
+<div class="task-workspace employee-task-workspace" data-task-workspace data-task-workspace-scope="employee" data-project-id="{{ selected_task_project ? selected_task_project.id : 0 }}">
+    <aside class="card task-project-nav" aria-label="Projects">
+        <div class="task-project-nav-head"><div><span class="panel-label">Workspace</span><h2>Projects</h2></div><span class="badge">{{ task_projects|length }}</span></div>
+        <nav>
+            {% for project in task_projects %}
+                <a class="task-project-link{% if selected_task_project and project.id == selected_task_project.id %} active{% endif %}" href="{{ path('employee_dashboard', {tab: 'tasks', project: project.id}) }}">
+                    <span><strong>{{ project.name }}</strong><small>{{ project.status|status_label }}</small></span>
+                    <span class="task-project-count">{{ project.tasks|length }}</span>
+                </a>
+            {% else %}<p class="muted">No assigned projects yet.</p>{% endfor %}
+        </nav>
+    </aside>
+
+    <section class="card task-tree-panel">
+        {% if selected_task_project %}
+            <div class="task-tree-head"><div><span class="panel-label">Selected Project</span><h2>{{ selected_task_project.name }}</h2></div><span class="badge">{{ employee_task_rows|length }} tasks</span></div>
+            <div class="task-tree-scroll">
+                <table class="task-tree" role="treegrid" aria-label="Tasks for {{ selected_task_project.name }}">
+                    <thead><tr><th>Task</th><th>Assignees</th><th>Status</th><th>Priority</th><th>Tags</th><th>Schedule</th><th>Time</th><th></th></tr></thead>
+                    <tbody>{% include 'employee/_task_tree_rows.html.twig' with {task_rows: employee_task_rows, selected_task_project: selected_task_project, employee: employee, active_task_entry: active_task_entry, task_status_options: task_status_options} only %}</tbody>
+                </table>
+            </div>
+            {% if employee_task_rows is empty %}<div class="empty task-empty"><h3>No tasks in this project</h3><p class="muted">Create the first task to begin planning the work.</p>{% if task_form %}<a class="button" href="{{ path('employee_dashboard', {tab: 'tasks', project: selected_task_project.id, create: 1}) }}">Add Task</a>{% endif %}</div>{% endif %}
+        {% else %}
+            <div class="empty"><h2>No assigned projects</h2><p class="muted">Ask an administrator to add you to a project.</p></div>
+        {% endif %}
+    </section>
+</div>

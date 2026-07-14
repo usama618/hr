@@ -16,7 +16,7 @@
                 }
             })();
         </script>
-        <link rel="stylesheet" href="{{ asset('styles.css') }}?v=waldbyte-hr-19">
+        <link rel="stylesheet" href="{{ asset('styles.css') }}?v=waldbyte-hr-20">
         {% block stylesheets %}
         {% endblock %}
 
@@ -564,7 +564,8 @@
             document.querySelectorAll('[data-task-workspace]').forEach((workspace) => {
                 const rows = Array.from(workspace.querySelectorAll('[data-task-id]'));
                 const projectId = workspace.dataset.projectId || '0';
-                const storageKey = `waldbyte.taskWorkspace.expanded.${projectId}`;
+                const scope = workspace.dataset.taskWorkspaceScope || 'default';
+                const storageKey = `waldbyte.taskWorkspace.${scope}.expanded.${projectId}`;
                 let expanded = new Set();
                 try {
                     expanded = new Set(JSON.parse(sessionStorage.getItem(storageKey) || '[]').map(String));

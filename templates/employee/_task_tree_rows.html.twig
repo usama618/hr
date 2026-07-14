@@ -1,0 +1,25 @@
+{% for row in task_rows %}
+    {% set task = row.task %}
+    {% set is_assigned_to_me = employee in task.assignees %}
+    {% set is_active_timer = active_task_entry and active_task_entry.task and active_task_entry.task.id == task.id %}
+    <tr class="task-tree-row{% if row.depth > 0 %} is-nested{% endif %}" role="row" tabindex="0" aria-level="{{ row.depth + 1 }}" data-task-id="{{ task.id }}" data-task-row-url="{{ path('employee_dashboard', {tab: 'tasks', project: selected_task_project.id, task: task.id}) }}"{% if task.parent %} data-task-parent="{{ task.parent.id }}" hidden{% endif %}>
+        <td role="gridcell"><div class="task-name-cell" style="--task-depth: {{ row.depth }}">{% if row.has_children %}<button type="button" class="task-expand" data-task-toggle="{{ task.id }}" aria-expanded="false" aria-label="Expand {{ task.title }}">›</button>{% else %}<span class="task-expand-spacer"></span>{% endif %}<a href="{{ path('employee_task_show', {id: task.id}) }}"><small>#{{ task.id }}</small><strong>{{ task.title }}</strong></a></div></td>
+        <td><div class="task-assignee-stack">{% for assignee in task.assignees|slice(0, 3) %}{% include 'partials/_avatar.html.twig' with {user: assignee, size: 'sm'} only %}{% else %}<span class="muted">Unassigned</span>{% endfor %}{% if task.assignees|length > 3 %}<span class="avatar-overflow">+{{ task.assignees|length - 3 }}</span>{% endif %}</div></td>
+        <td>
+            {% if is_assigned_to_me %}
+                <form class="task-status-form" method="post" action="{{ path('employee_task_status', {id: task.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('task_status_' ~ task.id) }}"><input type="hidden" name="return_to" value="workspace_list"><select class="task-status-select task-status-select--compact" name="status" aria-label="Change status for {{ task.title }}" onchange="this.form.submit()">{% for value, label in task_status_options %}<option value="{{ value }}"{% if task.status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></form>
+            {% else %}<span class="badge task-status task-status--{{ task.status }}">{{ task.status|status_label }}</span>{% endif %}
+            <div class="task-progress"><span style="width: {{ task.completionPercentage }}%"></span></div>
+        </td>
+        <td><span class="badge">{{ task.priority|status_label }}</span></td>
+        <td><div class="task-tags">{% for tag in task.tags %}<span>{{ tag }}</span>{% else %}<span class="muted">—</span>{% endfor %}</div></td>
+        <td><small>{{ task.startDate ? task.startDate|date('d.m.Y') : 'No start' }}<br>{{ task.dueDate ? 'Due ' ~ task.dueDate|date('d.m.Y') : 'No due date' }}</small></td>
+        <td><small><span{% if is_active_timer %} data-live-duration data-base-seconds="{{ task.trackedSeconds }}" data-start-timestamp="{{ active_task_entry.startedAt|date('U') }}"{% endif %}>{{ task.trackedSeconds|duration }}</span> / {{ task.estimatedMinutes ? (task.estimatedMinutes * 60)|duration : '—' }}</small></td>
+        <td><div class="task-row-actions">
+            {% if is_assigned_to_me and (task.status != 'completed' or is_active_timer) %}
+                <form method="post" action="{{ path(is_active_timer ? 'employee_task_pause' : 'employee_task_start', {id: task.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('task_' ~ task.id) }}"><input type="hidden" name="return_to" value="workspace_list"><button type="submit" class="task-timer-control{% if is_active_timer %} is-active{% endif %}" title="{{ is_active_timer ? 'Stop timer' : 'Start timer' }}" aria-label="{{ is_active_timer ? 'Stop timer for ' ~ task.title : 'Start timer for ' ~ task.title }}">{% if is_active_timer %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>{% else %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.8v10.4L17 12 9 6.8Z"></path></svg>{% endif %}</button></form>
+            {% endif %}
+            <a href="{{ path('employee_dashboard', {tab: 'tasks', project: selected_task_project.id, create: 1, parent: task.id}) }}" title="Add subtask" aria-label="Add subtask to {{ task.title }}">＋</a>
+        </div></td>
+    </tr>
+{% endfor %}

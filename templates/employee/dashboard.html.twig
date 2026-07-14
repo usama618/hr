@@ -187,121 +187,16 @@
     </section>
 
     <section class="tab-panel" data-tabset="employee-work" data-tab-panel="tasks" hidden>
-        <div class="section-head">
-            <div>
-                <span class="panel-label">Work Items</span>
-            </div>
-        </div>
-
-        {% if task_form %}
-            <article class="card task-create-card">
-                <h3>Create Task</h3>
-                {{ form_start(task_form, {attr: {class: 'task-create-form'}}) }}
-                    <div class="form-grid">
-                        {{ form_row(task_form.project) }}
-                        {{ form_row(task_form.assignees) }}
-                    </div>
-                    {{ form_row(task_form.title) }}
-                    {{ form_row(task_form.description) }}
-                    <div class="form-grid">
-                        {{ form_row(task_form.priority) }}
-                        {{ form_row(task_form.estimatedMinutes) }}
-                    </div>
-                    <button type="submit">Create Task</button>
-                {{ form_end(task_form) }}
-            </article>
-        {% else %}
-            <article class="card task-create-card">
-                <h3>Create Task</h3>
-                <p class="muted">You need project access before creating tasks.</p>
-            </article>
-        {% endif %}
-
-        <div class="stack">
-            {% for task in tasks %}
-                {% set is_active_task = active_task_entry and active_task_entry.task.id == task.id %}
-                {% set is_assigned_to_me = employee in task.assignees %}
-                <article class="card task-card{% if task.status == 'completed' %} is-completed{% endif %}">
-                    <div class="page-title compact-title">
-                        <div>
-                            <h3>
-                                {% if task.status == 'completed' %}
-                                    <span class="task-complete-mark" aria-hidden="true"></span>
-                                {% endif %}
-                                {{ task.title }}
-                            </h3>
-                            <div class="muted">
-                                {{ task.project.name }} · {{ task.status|status_label }}
-                                {% if task.assignees|length %}
-                                    · Assigned to {% for assignee in task.assignees %}{{ assignee.fullName }}{% if not loop.last %}, {% endif %}{% endfor %}
-                                {% endif %}
-                                {% if task.comments|length %}
-                                    · {{ task.comments|length }} comments
-                                {% endif %}
-                            </div>
-                        </div>
-                        <span class="badge">{{ task.priority|status_label }}</span>
-                    </div>
-
-                    {% if task.description %}
-                        <p>{{ task.description }}</p>
-                    {% endif %}
-
-                    <p>
-                        Tracked:
-                        <strong
-                            {% if is_active_task %}
-                                data-live-duration
-                                data-base-seconds="{{ task.trackedSeconds }}"
-                                data-start-timestamp="{{ 'now'|date('U') }}"
-                            {% endif %}
-                        >{{ task.trackedSeconds|duration }}</strong>
-                    </p>
-
-                    <div class="actions">
-                        <a class="button button-secondary" href="{{ path('employee_task_show', {id: task.id}) }}">View</a>
-
-                        {% if is_assigned_to_me %}
-                            <form class="task-status-form" method="post" action="{{ path('employee_task_status', {id: task.id}) }}">
-                                <input type="hidden" name="_token" value="{{ csrf_token('task_status_' ~ task.id) }}">
-                                <input type="hidden" name="return_to" value="dashboard">
-                                <select class="task-status-select" id="task-status-{{ task.id }}" name="status" aria-label="Change task status" onchange="this.form.submit()">
-                                    {% for status_value, status_label in task_status_options %}
-                                        <option value="{{ status_value }}" {% if task.status == status_value %}selected{% endif %}>{{ status_label }}</option>
-                                    {% endfor %}
-                                </select>
-                            </form>
-                        {% endif %}
-
-                        {% if is_assigned_to_me and task.status != 'completed' %}
-                            {% if is_active_task %}
-                                <form method="post" action="{{ path('employee_task_pause', {id: task.id}) }}">
-                                    <input type="hidden" name="_token" value="{{ csrf_token('task_' ~ task.id) }}">
-                                    <button type="submit" class="secondary">Pause</button>
-                                </form>
-                            {% else %}
-                                <form method="post" action="{{ path('employee_task_start', {id: task.id}) }}">
-                                    <input type="hidden" name="_token" value="{{ csrf_token('task_' ~ task.id) }}">
-                                    <button type="submit">Start</button>
-                                </form>
-                            {% endif %}
-                        {% elseif not is_assigned_to_me %}
-                            {% if task.status == 'completed' %}
-                                <span class="badge badge-success">Completed</span>
-                            {% elseif task.assignees|length %}
-                                <span class="badge">Waiting on {% for assignee in task.assignees %}{{ assignee.fullName }}{% if not loop.last %}, {% endif %}{% endfor %}</span>
-                            {% else %}
-                                <span class="badge">Unassigned</span>
-                            {% endif %}
-                        {% endif %}
-                    </div>
-                </article>
-            {% else %}
-                <div class="card">
-                    <p class="muted">No tasks yet.</p>
-                </div>
-            {% endfor %}
-        </div>
+        {% include 'employee/_task_workspace.html.twig' with {
+            employee: employee,
+            task_projects: task_projects,
+            selected_task_project: selected_task_project,
+            employee_task_rows: employee_task_rows,
+            selected_employee_task: selected_employee_task,
+            active_task_entry: active_task_entry,
+            task_status_options: task_status_options,
+            task_form: task_form
+        } only %}
     </section>
 
     <section class="tab-panel" data-tabset="employee-work" data-tab-panel="projects" hidden>

@@ -29,7 +29,7 @@ final class AdminTaskWorkspaceTest extends TestCase
         self::assertIsString($base);
         self::assertStringContainsString("[data-task-row-url]", $base);
         self::assertStringContainsString("closest('a, button, input, select, textarea, form')", $base);
-        self::assertStringContainsString("styles.css') }}?v=waldbyte-hr-19", $base);
+        self::assertStringContainsString("styles.css') }}?v=waldbyte-hr-20", $base);
     }
 
     public function testTaskFormExposesRichFieldsAndMultipleAssignees(): void

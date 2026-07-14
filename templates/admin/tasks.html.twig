@@ -8,7 +8,7 @@
         {% if selected_project %}<a class="button" href="{{ path('admin_task_new', {project: selected_project.id}) }}">Add Task</a>{% endif %}
     </div>
 
-    <div class="task-workspace" data-task-workspace data-project-id="{{ selected_project ? selected_project.id : 0 }}">
+    <div class="task-workspace" data-task-workspace data-task-workspace-scope="admin" data-project-id="{{ selected_project ? selected_project.id : 0 }}">
         <aside class="card task-project-nav" aria-label="Projects">
             <div class="task-project-nav-head"><div><span class="panel-label">Workspace</span><h2>Projects</h2></div><span class="badge">{{ projects|length }}</span></div>
             <nav>
