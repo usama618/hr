@@ -38,6 +38,15 @@ final class EmployeeTaskWorkspaceTest extends TestCase
         }
     }
 
+    public function testTasksTabUsesTheSameWideDesktopColumnsAsAdmin(): void
+    {
+        $workspace = file_get_contents(dirname(__DIR__, 2).'/templates/employee/_task_workspace.html.twig');
+        self::assertIsString($workspace);
+
+        self::assertStringContainsString('task-workspace--wide', $workspace);
+        self::assertSame(8, substr_count($workspace, 'class="task-col task-col--'));
+    }
+
     public function testEmployeesCanCreateRecursiveSubtasksFromTheWorkspace(): void
     {
         $root = dirname(__DIR__, 2);

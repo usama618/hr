@@ -8,7 +8,7 @@
         {% if selected_project %}<a class="button" href="{{ path('admin_task_new', {project: selected_project.id}) }}">Add Task</a>{% endif %}
     </div>
 
-    <div class="task-workspace" data-task-workspace data-task-workspace-scope="admin" data-project-id="{{ selected_project ? selected_project.id : 0 }}">
+    <div class="task-workspace task-workspace--wide" data-task-workspace data-task-workspace-scope="admin" data-project-id="{{ selected_project ? selected_project.id : 0 }}">
         <aside class="card task-project-nav" aria-label="Projects">
             <div class="task-project-nav-head"><div><span class="panel-label">Workspace</span><h2>Projects</h2></div><span class="badge">{{ projects|length }}</span></div>
             <nav>
@@ -28,6 +28,16 @@
                 <div class="task-tree-head"><div><span class="panel-label">Selected Project</span><h2>{{ selected_project.name }}</h2></div><span class="badge">{{ task_rows|length }} tasks</span></div>
                 <div class="task-tree-scroll">
                     <table class="task-tree" role="treegrid" aria-label="Tasks for {{ selected_project.name }}">
+                        <colgroup>
+                            <col class="task-col task-col--name">
+                            <col class="task-col task-col--assignees">
+                            <col class="task-col task-col--status">
+                            <col class="task-col task-col--priority">
+                            <col class="task-col task-col--tags">
+                            <col class="task-col task-col--schedule">
+                            <col class="task-col task-col--time">
+                            <col class="task-col task-col--actions">
+                        </colgroup>
                         <thead><tr><th>Task</th><th>Assignees</th><th>Status</th><th>Priority</th><th>Tags</th><th>Schedule</th><th>Time</th><th></th></tr></thead>
                         <tbody>{% include 'admin/_task_tree_rows.html.twig' with {task_rows: task_rows, selected_project: selected_project, active_task_entry: active_task_entry} only %}</tbody>
                     </table>
