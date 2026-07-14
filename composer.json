@@ -1,4 +1,6 @@
 {
+    "name": "waldbyte/hr",
+    "description": "Waldbyte internal HR, project, task and time tracking portal.",
     "type": "project",
     "license": "proprietary",
     "minimum-stability": "stable",
