@@ -40,9 +40,6 @@
     </div>
 
     {% if selected_task %}
-        <section class="task-detail-dialog card" data-task-dialog aria-labelledby="task-dialog-title" role="dialog" aria-modal="true">
-            <a class="task-dialog-backdrop" href="{{ path('admin_tasks', {project: selected_project.id}) }}" aria-label="Close task"></a>
-            <div class="task-dialog-surface"><div class="task-dialog-head"><div><span class="panel-label">Task #{{ selected_task.id }}</span><h2 id="task-dialog-title">{{ selected_task.title }}</h2><p class="muted">{{ selected_project.name }}</p></div><a class="task-dialog-close" href="{{ path('admin_tasks', {project: selected_project.id}) }}" aria-label="Close">×</a></div><p>{{ selected_task.description ?: 'No description added.' }}</p></div>
-        </section>
+        {% include 'admin/_task_detail_panel.html.twig' with {selected_task: selected_task, selected_project: selected_project} only %}
     {% endif %}
 {% endblock %}
