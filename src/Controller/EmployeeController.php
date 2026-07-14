@@ -8,6 +8,8 @@ use App\Entity\LeaveRequest;
 use App\Entity\Project;
 use App\Entity\Task;
 use App\Entity\TaskComment;
+use App\Entity\TaskDocument;
+use App\Entity\TaskProblem;
 use App\Entity\TaskTimeEntry;
 use App\Entity\User;
 use App\Form\EmployeeProfileFormType;
@@ -19,13 +21,16 @@ use App\Repository\TaskTimeEntryRepository;
 use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
 use App\Service\NotificationService;
+use App\Service\TaskActivityService;
 use App\Service\TaskHierarchyService;
 use App\Service\TaskLifecycleService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -189,18 +194,10 @@ class EmployeeController extends AbstractController
         $employee = $this->getEmployeeUser();
         $this->denyUnlessTaskVisible($task, $employee);
 
-        return $this->render('task/show.html.twig', [
-            'task' => $task,
-            'back_path' => $this->generateUrl('employee_dashboard').'?tab=tasks',
-            'back_label' => 'Back to My Tasks',
-            'edit_path' => null,
-            'comment_add_path' => $this->generateUrl('employee_task_comment', ['id' => $task->getId()]),
-            'comment_edit_route' => 'employee_task_comment_edit',
-            'comment_delete_route' => 'employee_task_comment_delete',
-            'can_administer_comments' => false,
-            'can_update_status' => $this->canUpdateAssignedTask($task, $employee),
-            'status_update_path' => $this->generateUrl('employee_task_status', ['id' => $task->getId()]),
-            'task_status_options' => self::TASK_STATUS_OPTIONS,
+        return $this->redirectToRoute('employee_dashboard', [
+            'tab' => 'tasks',
+            'project' => $task->getProject()?->getId(),
+            'task' => $task->getId(),
         ]);
     }
 
@@ -301,7 +298,7 @@ class EmployeeController extends AbstractController
         NotificationService $notifications,
     ): Response {
         $employee = $this->getEmployeeUser();
-        $this->denyUnlessTaskVisible($task, $employee);
+        $this->denyUnlessTaskParticipant($task, $employee);
         $this->guardCsrf($request, 'comment_'.$task->getId());
 
         $body = trim((string) $request->request->get('body'));
@@ -329,7 +326,7 @@ class EmployeeController extends AbstractController
     {
         $employee = $this->getEmployeeUser();
         $task = $this->getCommentTask($comment);
-        $this->denyUnlessTaskVisible($task, $employee);
+        $this->denyUnlessTaskParticipant($task, $employee);
         $this->denyUnlessCommentOwner($comment, $employee);
         $this->guardCsrf($request, 'comment_edit_'.$comment->getId());
 
@@ -352,13 +349,49 @@ class EmployeeController extends AbstractController
     {
         $employee = $this->getEmployeeUser();
         $task = $this->getCommentTask($comment);
-        $this->denyUnlessTaskVisible($task, $employee);
+        $this->denyUnlessTaskParticipant($task, $employee);
         $this->denyUnlessCommentOwner($comment, $employee);
         $this->guardCsrf($request, 'comment_delete_'.$comment->getId());
 
         $entityManager->remove($comment);
         $entityManager->flush();
         $this->addFlash('success', 'Comment deleted.');
+
+        return $this->redirectToRoute('employee_task_show', ['id' => $task->getId()]);
+    }
+
+    #[Route('/task-documents/{id}/download', name: 'task_document_download', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function downloadTaskDocument(TaskDocument $document, KernelInterface $kernel): BinaryFileResponse
+    {
+        $task = $document->getTask() ?? throw $this->createNotFoundException();
+        $this->denyUnlessTaskVisible($task, $this->getEmployeeUser());
+        $path = $kernel->getProjectDir().'/var/task-documents/'.$document->getStoredFilename();
+        if (!is_file($path)) {
+            throw $this->createNotFoundException('Document file is missing.');
+        }
+
+        return $this->file($path, $document->getOriginalFilename(), ResponseHeaderBag::DISPOSITION_ATTACHMENT);
+    }
+
+    #[Route('/tasks/{id}/problems', name: 'task_problem_add', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function addTaskProblem(Task $task, Request $request, EntityManagerInterface $entityManager, TaskActivityService $activity): Response
+    {
+        $employee = $this->getEmployeeUser();
+        $this->denyUnlessTaskParticipant($task, $employee);
+        $this->guardCsrf($request, 'task_problem_'.$task->getId());
+        $description = trim((string) $request->request->get('description'));
+        if ($description === '') {
+            $this->addFlash('error', 'Describe the problem first.');
+
+            return $this->redirectToRoute('employee_task_show', ['id' => $task->getId()]);
+        }
+
+        $problem = (new TaskProblem())->setTask($task)->setAuthor($employee)->setDescription($description);
+        $task->addProblem($problem);
+        $entityManager->persist($problem);
+        $activity->record($task, $employee, 'problem_added', 'A problem was reported.');
+        $entityManager->flush();
+        $this->addFlash('success', 'Problem reported.');
 
         return $this->redirectToRoute('employee_task_show', ['id' => $task->getId()]);
     }
@@ -708,10 +741,16 @@ class EmployeeController extends AbstractController
 
     private function denyUnlessTaskVisible(Task $task, User $employee): void
     {
-        $isAssignee = $task->isAssignedTo($employee);
-        $isCreator = $task->getCreatedBy()?->getId() === $employee->getId();
+        $project = $task->getProject();
+        if (!$project || !$project->getEmployees()->contains($employee)) {
+            throw $this->createAccessDeniedException();
+        }
+    }
 
-        if (!$isAssignee && !$isCreator) {
+    private function denyUnlessTaskParticipant(Task $task, User $employee): void
+    {
+        $this->denyUnlessTaskVisible($task, $employee);
+        if (!$task->isAssignedTo($employee) && $task->getCreatedBy()?->getId() !== $employee->getId()) {
             throw $this->createAccessDeniedException();
         }
     }

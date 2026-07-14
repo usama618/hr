@@ -1,0 +1,60 @@
+{% set is_assigned_to_me = employee in task.assignees %}
+{% set is_created_by_me = task.createdBy and task.createdBy.id == employee.id %}
+{% set can_participate = is_assigned_to_me or is_created_by_me %}
+{% set is_active_timer = active_task_entry and active_task_entry.task and active_task_entry.task.id == task.id %}
+<section class="task-detail-dialog" data-task-dialog aria-labelledby="employee-task-dialog-title" role="dialog" aria-modal="true">
+    <a class="task-dialog-backdrop" href="{{ path('employee_dashboard', {tab: 'tasks', project: project.id}) }}" aria-label="Close task"></a>
+    <div class="task-dialog-surface">
+        <header class="task-dialog-head">
+            <div><span class="panel-label">Task #{{ task.id }}{% if task.parent %} · Subtask{% endif %}</span><h2 id="employee-task-dialog-title">{{ task.title }}</h2><p class="muted">By {{ task.createdBy ? task.createdBy.fullName : 'Admin' }} · {{ project.name }}</p></div>
+            <div class="actions">
+                {% if is_assigned_to_me and (task.status != 'completed' or is_active_timer) %}
+                    <form method="post" action="{{ path(is_active_timer ? 'employee_task_pause' : 'employee_task_start', {id: task.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('task_' ~ task.id) }}"><input type="hidden" name="return_to" value="workspace_task"><button type="submit" class="task-timer-control task-timer-control--detail{% if is_active_timer %} is-active{% endif %}" title="{{ is_active_timer ? 'Stop timer' : 'Start timer' }}" aria-label="{{ is_active_timer ? 'Stop task timer' : 'Start task timer' }}">{% if is_active_timer %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>{% else %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.8v10.4L17 12 9 6.8Z"></path></svg>{% endif %}</button></form>
+                {% endif %}
+                <a class="task-dialog-close" data-task-dialog-close href="{{ path('employee_dashboard', {tab: 'tasks', project: project.id}) }}" aria-label="Close">×</a>
+            </div>
+        </header>
+
+        <div class="task-detail-summary">
+            {% if is_assigned_to_me %}
+                <form method="post" action="{{ path('employee_task_status', {id: task.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('task_status_' ~ task.id) }}"><input type="hidden" name="return_to" value="workspace_task"><label>Status<select name="status" onchange="this.form.submit()">{% for value, label in task_status_options %}<option value="{{ value }}"{% if task.status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></form>
+            {% else %}<span class="badge task-status task-status--{{ task.status }}">{{ task.status|status_label }}</span>{% endif %}
+            <dl class="task-summary-grid">
+                <div><dt>Priority</dt><dd>{{ task.priority|status_label }}</dd></div>
+                <div><dt>Completion</dt><dd>{{ task.completionPercentage }}%</dd></div>
+                <div><dt>Assignees</dt><dd>{% for user in task.assignees %}{{ user.fullName }}{% if not loop.last %}, {% endif %}{% else %}Unassigned{% endfor %}</dd></div>
+                <div><dt>Tags</dt><dd>{{ task.tags ? task.tags|join(', ') : 'None' }}</dd></div>
+                <div><dt>Schedule</dt><dd>{{ task.startDate ? task.startDate|date('d.m.Y') : 'No start' }} – {{ task.dueDate ? task.dueDate|date('d.m.Y') : 'No due date' }}</dd></div>
+                <div><dt>Time</dt><dd><span{% if is_active_timer %} data-live-duration data-base-seconds="{{ task.trackedSeconds }}" data-start-timestamp="{{ active_task_entry.startedAt|date('U') }}"{% endif %}>{{ task.trackedSeconds|duration }}</span> tracked / {{ task.estimatedMinutes ?: 0 }} min estimated</dd></div>
+                <div><dt>Reminder</dt><dd>{{ task.reminderAt ? task.reminderAt|date('d.m.Y H:i') : 'None' }}</dd></div>
+                <div><dt>Recurrence</dt><dd>{{ task.recurrence ? task.recurrence|status_label : 'None' }}</dd></div>
+                <div><dt>Billing</dt><dd>{{ task.billingType|status_label }}</dd></div>
+            </dl>
+            {% if task.description %}<div class="task-description">{{ task.description|nl2br }}</div>{% endif %}
+        </div>
+
+        <nav class="task-panel-tabs" data-task-tabs>{% for id, label in {'comments':'Comments','subtasks':'Subtasks','time':'Time Logs','documents':'Documents','history':'Status Timeline','problems':'Problems','activity':'Activity'} %}<button type="button" data-task-tab="{{ id }}"{% if loop.first %} class="active" aria-selected="true"{% else %} aria-selected="false"{% endif %}>{{ label }}{% if id == 'subtasks' %} ({{ task.children|length }}){% endif %}</button>{% endfor %}</nav>
+
+        <div class="task-panel-body">
+            <section data-task-panel="comments">
+                {% if can_participate %}<form class="post-comment-form" method="post" action="{{ path('employee_task_comment', {id: task.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('comment_' ~ task.id) }}"><label>Write a comment<textarea name="body" rows="3" required></textarea></label><button>Post Comment</button></form>{% endif %}
+                {% for comment in task.comments %}<article class="comment-item"><strong>{{ comment.author ? comment.author.fullName : 'Deleted user' }}</strong><small>{{ comment.createdAt|date('d.m.Y H:i') }}</small><p>{{ comment.body|nl2br }}</p>{% if comment.author and comment.author.id == employee.id %}<div class="comment-actions"><details><summary>Edit</summary><form method="post" action="{{ path('employee_task_comment_edit', {id: comment.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('comment_edit_' ~ comment.id) }}"><textarea name="body" rows="2" required>{{ comment.body }}</textarea><button>Save</button></form></details><form method="post" action="{{ path('employee_task_comment_delete', {id: comment.id}) }}" onsubmit="return confirm('Delete this comment?');"><input type="hidden" name="_token" value="{{ csrf_token('comment_delete_' ~ comment.id) }}"><button class="danger">Delete</button></form></div>{% endif %}</article>{% else %}<p class="muted">No comments yet.</p>{% endfor %}
+            </section>
+            <section data-task-panel="subtasks" hidden>
+                <a class="button" href="{{ path('employee_dashboard', {tab: 'tasks', project: project.id, create: 1, parent: task.id}) }}">Add Subtask</a>
+                <div class="stack">{% for child in task.children %}<a class="card task-subtask-link" href="{{ path('employee_dashboard', {tab: 'tasks', project: project.id, task: child.id}) }}"><strong>{{ child.title }}</strong><span class="badge">{{ child.status|status_label }}</span></a>{% else %}<p class="muted">No subtasks yet.</p>{% endfor %}</div>
+            </section>
+            <section data-task-panel="time" hidden>
+                {% set own_time_entries = task.timeEntries|filter(entry => entry.employee and entry.employee.id == employee.id) %}
+                {% for entry in own_time_entries %}<div class="detail-row"><strong>{{ entry.startedAt|date('d.m.Y H:i') }}</strong><span>{{ entry.seconds|duration }}{% if not entry.endedAt %} · Active{% endif %}</span></div>{% else %}<p class="muted">No time logged by you.</p>{% endfor %}
+            </section>
+            <section data-task-panel="documents" hidden>{% for document in task.documents %}<div class="detail-row"><a href="{{ path('employee_task_document_download', {id: document.id}) }}">{{ document.originalFilename }}</a><small>{{ document.fileSize }} bytes</small></div>{% else %}<p class="muted">No documents attached.</p>{% endfor %}</section>
+            <section data-task-panel="history" hidden>{% for history in task.statusHistory %}<div class="detail-row"><span>{{ history.previousStatus|status_label }} → {{ history.newStatus|status_label }}</span><small>{{ history.actor ? history.actor.fullName : 'System' }} · {{ history.createdAt|date('d.m.Y H:i') }}</small></div>{% else %}<p class="muted">No status changes recorded.</p>{% endfor %}</section>
+            <section data-task-panel="problems" hidden>
+                {% if can_participate %}<form class="post-comment-form" method="post" action="{{ path('employee_task_problem_add', {id: task.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('task_problem_' ~ task.id) }}"><textarea name="description" rows="2" required placeholder="Describe a blocker or problem"></textarea><button>Report Problem</button></form>{% endif %}
+                {% for problem in task.problems %}<div class="problem-item{% if problem.resolved %} is-resolved{% endif %}"><p>{{ problem.description }}</p><small>{{ problem.author ? problem.author.fullName : 'Deleted user' }} · {{ problem.createdAt|date('d.m.Y H:i') }}</small>{% if problem.resolved %}<span class="badge badge-success">Resolved</span>{% endif %}</div>{% else %}<p class="muted">No problems reported.</p>{% endfor %}
+            </section>
+            <section data-task-panel="activity" hidden>{% for item in task.activities %}<div class="detail-row"><span>{{ item.summary }}</span><small>{{ item.actor ? item.actor.fullName : 'System' }} · {{ item.createdAt|date('d.m.Y H:i') }}</small></div>{% else %}<p class="muted">No activity recorded.</p>{% endfor %}</section>
+        </div>
+    </div>
+</section>

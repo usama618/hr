@@ -7,6 +7,10 @@
     {% include 'employee/_task_create_dialog.html.twig' with {task_form: task_form, selected_task_project: selected_task_project, selected_parent_task: selected_parent_task} only %}
 {% endif %}
 
+{% if selected_employee_task %}
+    {% include 'employee/_task_detail_panel.html.twig' with {task: selected_employee_task, project: selected_task_project, employee: employee, active_task_entry: active_task_entry, task_status_options: task_status_options} only %}
+{% endif %}
+
 <div class="task-workspace employee-task-workspace" data-task-workspace data-task-workspace-scope="employee" data-project-id="{{ selected_task_project ? selected_task_project.id : 0 }}">
     <aside class="card task-project-nav" aria-label="Projects">
         <div class="task-project-nav-head"><div><span class="panel-label">Workspace</span><h2>Projects</h2></div><span class="badge">{{ task_projects|length }}</span></div>

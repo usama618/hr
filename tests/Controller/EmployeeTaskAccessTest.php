@@ -19,4 +19,17 @@ final class EmployeeTaskAccessTest extends TestCase
         self::assertStringContainsString('assignees', $source);
         self::assertStringContainsString('isAssignedTo', $source);
     }
+
+    public function testEmployeeWorkspaceNeverRendersManagerNotesOrAdminMutations(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $panelPath = $root.'/templates/employee/_task_detail_panel.html.twig';
+        self::assertFileExists($panelPath);
+        $panel = file_get_contents($panelPath);
+        self::assertIsString($panel);
+        self::assertStringNotContainsString('managerNote', $panel);
+        self::assertStringNotContainsString('admin_task_detail_', $panel);
+        self::assertStringNotContainsString('document_delete', $panel);
+        self::assertStringNotContainsString('problem_resolve', $panel);
+    }
 }

@@ -55,4 +55,24 @@ final class EmployeeTaskWorkspaceTest extends TestCase
         self::assertStringContainsString('parent: task.id', $rows);
         self::assertStringContainsString('name="parent_id"', $dialog);
     }
+
+    public function testEmployeeDetailPanelContainsSafeTaskFeatures(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $panelPath = $root.'/templates/employee/_task_detail_panel.html.twig';
+        self::assertFileExists($panelPath);
+        $panel = file_get_contents($panelPath);
+        $controller = file_get_contents($root.'/src/Controller/EmployeeController.php');
+        self::assertIsString($panel);
+        self::assertIsString($controller);
+
+        foreach (['Comments', 'Subtasks', 'Time Logs', 'Documents', 'Status Timeline', 'Problems', 'Activity'] as $label) {
+            self::assertStringContainsString($label, $panel);
+        }
+        self::assertStringNotContainsString('managerNote', $panel);
+        self::assertStringNotContainsString('Add Time Log', $panel);
+        self::assertStringContainsString('task_document_download', $controller);
+        self::assertStringContainsString('task_problem_add', $controller);
+        self::assertStringContainsString('denyUnlessTaskParticipant', $controller);
+    }
 }
