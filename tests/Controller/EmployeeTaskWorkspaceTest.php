@@ -75,4 +75,13 @@ final class EmployeeTaskWorkspaceTest extends TestCase
         self::assertStringContainsString('task_problem_add', $controller);
         self::assertStringContainsString('denyUnlessTaskParticipant', $controller);
     }
+
+    public function testTaskActionsPreserveEmployeeWorkspaceContext(): void
+    {
+        $controller = file_get_contents(dirname(__DIR__, 2).'/src/Controller/EmployeeController.php');
+        self::assertIsString($controller);
+        self::assertStringContainsString("'workspace_list'", $controller);
+        self::assertStringContainsString("'workspace_task'", $controller);
+        self::assertStringContainsString('redirectToTaskWorkspace', $controller);
+    }
 }

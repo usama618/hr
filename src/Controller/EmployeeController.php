@@ -500,13 +500,13 @@ class EmployeeController extends AbstractController
         if (!$openAttendance) {
             $this->addFlash('error', 'Check in before starting task time.');
 
-            return $this->redirectToRoute('employee_dashboard');
+            return $this->redirectAfterTaskTimer($task, $request);
         }
 
         if ($this->findActiveBreak($openAttendance)) {
             $this->addFlash('error', 'Resume work before starting a task.');
 
-            return $this->redirectToRoute('employee_dashboard');
+            return $this->redirectAfterTaskTimer($task, $request);
         }
 
         $now = new \DateTimeImmutable();
@@ -521,7 +521,7 @@ class EmployeeController extends AbstractController
         $entityManager->flush();
         $this->addFlash('success', 'Task timer started.');
 
-        return $this->redirectToRoute('employee_dashboard');
+        return $this->redirectAfterTaskTimer($task, $request);
     }
 
     #[Route('/tasks/{id}/pause', name: 'task_pause', methods: ['POST'])]
@@ -544,7 +544,7 @@ class EmployeeController extends AbstractController
             $this->addFlash('success', 'Task timer paused.');
         }
 
-        return $this->redirectToRoute('employee_dashboard');
+        return $this->redirectAfterTaskTimer($task, $request);
     }
 
     #[Route('/tasks/{id}/status', name: 'task_status', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -760,8 +760,28 @@ class EmployeeController extends AbstractController
         return match ((string) $request->request->get('return_to')) {
             'task' => $this->redirectToRoute('employee_task_show', ['id' => $task->getId()]),
             'project' => $this->redirectToRoute('employee_project_show', ['id' => $task->getProject()?->getId()]),
+            'workspace_list' => $this->redirectToTaskWorkspace($task, false),
+            'workspace_task' => $this->redirectToTaskWorkspace($task, true),
             default => $this->redirect($this->generateUrl('employee_dashboard').'?tab=tasks'),
         };
+    }
+
+    private function redirectAfterTaskTimer(Task $task, Request $request): Response
+    {
+        return match ((string) $request->request->get('return_to')) {
+            'workspace_list' => $this->redirectToTaskWorkspace($task, false),
+            'workspace_task' => $this->redirectToTaskWorkspace($task, true),
+            default => $this->redirectToRoute('employee_dashboard'),
+        };
+    }
+
+    private function redirectToTaskWorkspace(Task $task, bool $keepTask): Response
+    {
+        return $this->redirectToRoute('employee_dashboard', [
+            'tab' => 'tasks',
+            'project' => $task->getProject()?->getId(),
+            'task' => $keepTask ? $task->getId() : null,
+        ]);
     }
 
     private function redirectToTaskCreation(Project $project, ?Task $parent): Response
