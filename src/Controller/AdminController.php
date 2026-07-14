@@ -19,6 +19,8 @@ use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
 use App\Service\NotificationService;
 use App\Service\TaskHierarchyService;
+use App\Service\TaskActivityService;
+use App\Service\TaskLifecycleService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -272,6 +274,7 @@ class AdminController extends AbstractController
         Request $request,
         EntityManagerInterface $entityManager,
         NotificationService $notifications,
+        TaskActivityService $activity,
     ): Response {
         $project = $entityManager->getRepository(Project::class)->find((int) $request->query->get('project', 0));
         $parent = $entityManager->getRepository(Task::class)->find((int) $request->query->get('parent', 0));
@@ -283,6 +286,7 @@ class AdminController extends AbstractController
         if ($form->isSubmitted() && $form->isValid()) {
             $this->grantProjectAccessForAssignee($task);
             $entityManager->persist($task);
+            $activity->record($task, $this->getAuthenticatedUser(), 'created', 'Task created.');
             $entityManager->flush();
             $notifications->notifyTaskAssigned($task, $this->getAuthenticatedUser());
             $entityManager->flush();
@@ -305,6 +309,8 @@ class AdminController extends AbstractController
         Request $request,
         EntityManagerInterface $entityManager,
         NotificationService $notifications,
+        TaskActivityService $activity,
+        TaskLifecycleService $lifecycle,
     ): Response {
         $previousAssignees = $task->getAssignees()->toArray();
         $previousStatus = $task->getStatus();
@@ -313,9 +319,13 @@ class AdminController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             $actor = $this->getAuthenticatedUser();
+            $requestedStatus = $task->getStatus();
+            $task->setStatus($previousStatus);
             $this->grantProjectAccessForAssignee($task);
             $notifications->notifyTaskAssigned($task, $actor, $previousAssignees);
+            if ($next = $lifecycle->transition($task, $requestedStatus, $actor)) { $entityManager->persist($next); }
             $notifications->notifyTaskStatusChanged($task, $actor, $previousStatus);
+            $activity->record($task, $actor, 'edited', 'Task details updated.');
             $entityManager->flush();
             $this->addFlash('success', 'Task updated.');
 
@@ -336,6 +346,7 @@ class AdminController extends AbstractController
         Request $request,
         EntityManagerInterface $entityManager,
         NotificationService $notifications,
+        TaskActivityService $activity,
     ): Response {
         $this->guardCsrf($request, 'comment_'.$task->getId());
 
@@ -352,6 +363,7 @@ class AdminController extends AbstractController
             ->setBody($body);
 
         $entityManager->persist($comment);
+        $activity->record($task, $this->getAuthenticatedUser(), 'comment_added', 'A comment was added.');
         $notifications->notifyTaskCommented($task, $this->getAuthenticatedUser());
         $entityManager->flush();
         $this->addFlash('success', 'Comment added.');

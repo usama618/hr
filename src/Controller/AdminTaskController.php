@@ -11,6 +11,7 @@ use App\Entity\TaskTimeEntry;
 use App\Entity\User;
 use App\Service\TaskActivityService;
 use App\Service\TaskHierarchyService;
+use App\Service\TaskLifecycleService;
 use App\Service\TaskRecurrenceService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -30,20 +31,15 @@ final class AdminTaskController extends AbstractController
     private const ALLOWED_MIME_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/jpeg', 'image/png', 'image/webp', 'text/plain'];
 
     #[Route('/{id}/status', name: 'status', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function status(Task $task, Request $request, EntityManagerInterface $em, TaskActivityService $activity, TaskRecurrenceService $recurrence): RedirectResponse
+    public function status(Task $task, Request $request, EntityManagerInterface $em, TaskLifecycleService $lifecycle): RedirectResponse
     {
         $this->guardCsrf($request, 'task_status_'.$task->getId());
         $status = (string) $request->request->get('status');
         if (!in_array($status, [Task::STATUS_TODO, Task::STATUS_IN_PROGRESS, Task::STATUS_PAUSED, Task::STATUS_COMPLETED], true)) {
             $this->addFlash('error', 'Choose a valid task status.'); return $this->workspaceRedirect($task);
         }
-        $previous = $task->getStatus();
-        if ($previous !== $status) {
-            $task->setStatus($status);
-            $history = (new TaskStatusHistory())->setTask($task)->setActor($this->getAuthenticatedUser())->setPreviousStatus($previous)->setNewStatus($status);
-            $task->addStatusHistory($history);
-            $activity->record($task, $this->getAuthenticatedUser(), 'status_changed', 'Status changed from '.str_replace('_', ' ', $previous).' to '.str_replace('_', ' ', $status).'.', ['from' => $previous, 'to' => $status]);
-            if ($next = $recurrence->createNextOccurrence($task)) { $em->persist($next); }
+        if ($task->getStatus() !== $status) {
+            if ($next = $lifecycle->transition($task, $status, $this->getAuthenticatedUser())) { $em->persist($next); }
             $em->flush();
         }
         return $this->workspaceRedirect($task);

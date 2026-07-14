@@ -18,6 +18,7 @@ use App\Repository\LeaveRequestRepository;
 use App\Repository\TaskTimeEntryRepository;
 use App\Repository\UserRepository;
 use App\Service\NotificationService;
+use App\Service\TaskLifecycleService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -329,6 +330,7 @@ class EmployeeController extends AbstractController
         AttendanceEntryRepository $attendanceEntries,
         TaskTimeEntryRepository $taskTimeEntries,
         EntityManagerInterface $entityManager,
+        TaskLifecycleService $lifecycle,
     ): Response {
         $this->guardCsrf($request, 'attendance');
         $employee = $this->getEmployeeUser();
@@ -400,6 +402,7 @@ class EmployeeController extends AbstractController
         AttendanceEntryRepository $attendanceEntries,
         TaskTimeEntryRepository $taskTimeEntries,
         EntityManagerInterface $entityManager,
+        TaskLifecycleService $lifecycle,
     ): Response {
         $this->guardCsrf($request, 'task_'.$task->getId());
         $employee = $this->getEmployeeUser();
@@ -425,7 +428,7 @@ class EmployeeController extends AbstractController
             ->setEmployee($employee)
             ->setTask($task)
             ->setStartedAt($now);
-        $task->setStatus(Task::STATUS_IN_PROGRESS);
+        if ($next = $lifecycle->transition($task, Task::STATUS_IN_PROGRESS, $employee)) { $entityManager->persist($next); }
         $entityManager->persist($timeEntry);
         $entityManager->flush();
         $this->addFlash('success', 'Task timer started.');
@@ -439,6 +442,7 @@ class EmployeeController extends AbstractController
         Request $request,
         TaskTimeEntryRepository $taskTimeEntries,
         EntityManagerInterface $entityManager,
+        TaskLifecycleService $lifecycle,
     ): Response {
         $this->guardCsrf($request, 'task_'.$task->getId());
         $employee = $this->getEmployeeUser();
@@ -447,7 +451,7 @@ class EmployeeController extends AbstractController
         $entry = $taskTimeEntries->findOpenForUserAndTask($employee, $task);
         if ($entry) {
             $entry->setEndedAt(new \DateTimeImmutable());
-            $task->setStatus(Task::STATUS_PAUSED);
+            if ($next = $lifecycle->transition($task, Task::STATUS_PAUSED, $employee)) { $entityManager->persist($next); }
             $entityManager->flush();
             $this->addFlash('success', 'Task timer paused.');
         }
@@ -462,6 +466,7 @@ class EmployeeController extends AbstractController
         TaskTimeEntryRepository $taskTimeEntries,
         EntityManagerInterface $entityManager,
         NotificationService $notifications,
+        TaskLifecycleService $lifecycle,
     ): Response {
         $this->guardCsrf($request, 'task_status_'.$task->getId());
         $employee = $this->getEmployeeUser();
@@ -486,7 +491,7 @@ class EmployeeController extends AbstractController
             }
         }
 
-        $task->setStatus($status);
+        if ($next = $lifecycle->transition($task, $status, $employee)) { $entityManager->persist($next); }
         $notifications->notifyTaskStatusChanged($task, $employee, $previousStatus);
         $entityManager->flush();
         $this->addFlash('success', 'Task status updated.');
@@ -501,6 +506,7 @@ class EmployeeController extends AbstractController
         TaskTimeEntryRepository $taskTimeEntries,
         EntityManagerInterface $entityManager,
         NotificationService $notifications,
+        TaskLifecycleService $lifecycle,
     ): Response {
         $this->guardCsrf($request, 'task_'.$task->getId());
         $employee = $this->getEmployeeUser();
@@ -512,7 +518,7 @@ class EmployeeController extends AbstractController
             $entry->setEndedAt(new \DateTimeImmutable());
         }
 
-        $task->setStatus(Task::STATUS_COMPLETED);
+        if ($next = $lifecycle->transition($task, Task::STATUS_COMPLETED, $employee)) { $entityManager->persist($next); }
         $notifications->notifyTaskStatusChanged($task, $employee, $previousStatus);
         $entityManager->flush();
         $this->addFlash('success', 'Task completed.');
