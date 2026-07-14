@@ -1,11 +1,30 @@
 <section class="task-detail-dialog" data-task-dialog aria-labelledby="task-dialog-title" role="dialog" aria-modal="true">
+    {% set is_active_timer = active_task_entry and active_task_entry.task and active_task_entry.task.id == selected_task.id %}
     <a class="task-dialog-backdrop" href="{{ path('admin_tasks', {project: selected_project.id}) }}" aria-label="Close task"></a>
     <div class="task-dialog-surface">
-        <header class="task-dialog-head"><div><span class="panel-label">Task #{{ selected_task.id }}{% if selected_task.parent %} · Subtask{% endif %}</span><h2 id="task-dialog-title">{{ selected_task.title }}</h2><p class="muted">By {{ selected_task.createdBy ? selected_task.createdBy.fullName : 'Admin' }} · {{ selected_project.name }}</p></div><div class="actions"><a class="button button-secondary" href="{{ path('admin_task_edit', {id: selected_task.id}) }}">Edit</a><a class="task-dialog-close" data-task-dialog-close href="{{ path('admin_tasks', {project: selected_project.id}) }}" aria-label="Close">×</a></div></header>
+        <header class="task-dialog-head">
+            <div><span class="panel-label">Task #{{ selected_task.id }}{% if selected_task.parent %} · Subtask{% endif %}</span><h2 id="task-dialog-title">{{ selected_task.title }}</h2><p class="muted">By {{ selected_task.createdBy ? selected_task.createdBy.fullName : 'Admin' }} · {{ selected_project.name }}</p></div>
+            <div class="actions">
+                {% if selected_task.status != 'completed' or is_active_timer %}
+                    <form method="post" action="{{ path(is_active_timer ? 'admin_task_detail_timer_stop' : 'admin_task_detail_timer_start', {id: selected_task.id}) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('task_timer_' ~ selected_task.id) }}">
+                        <button type="submit" class="task-timer-control task-timer-control--detail{% if is_active_timer %} is-active{% endif %}" title="{{ is_active_timer ? 'Stop timer' : 'Start timer' }}" aria-label="{{ is_active_timer ? 'Stop task timer' : 'Start task timer' }}">
+                            {% if is_active_timer %}
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
+                            {% else %}
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.8v10.4L17 12 9 6.8Z"></path></svg>
+                            {% endif %}
+                        </button>
+                    </form>
+                {% endif %}
+                <a class="button button-secondary" href="{{ path('admin_task_edit', {id: selected_task.id}) }}">Edit</a>
+                <a class="task-dialog-close" data-task-dialog-close href="{{ path('admin_tasks', {project: selected_project.id}) }}" aria-label="Close">×</a>
+            </div>
+        </header>
 
         <div class="task-detail-summary">
             <form method="post" action="{{ path('admin_task_detail_status', {id: selected_task.id}) }}"><input type="hidden" name="_token" value="{{ csrf_token('task_status_' ~ selected_task.id) }}"><label>Status<select name="status" onchange="this.form.submit()">{% for value, label in {'todo':'To do','in_progress':'In progress','paused':'Paused','completed':'Completed'} %}<option value="{{ value }}"{% if selected_task.status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label></form>
-            <dl class="task-summary-grid"><div><dt>Priority</dt><dd>{{ selected_task.priority|status_label }}</dd></div><div><dt>Completion</dt><dd>{{ selected_task.completionPercentage }}%</dd></div><div><dt>Assignees</dt><dd>{% for user in selected_task.assignees %}{{ user.fullName }}{% if not loop.last %}, {% endif %}{% else %}Unassigned{% endfor %}</dd></div><div><dt>Tags</dt><dd>{{ selected_task.tags ? selected_task.tags|join(', ') : 'None' }}</dd></div><div><dt>Schedule</dt><dd>{{ selected_task.startDate ? selected_task.startDate|date('d.m.Y') : 'No start' }} – {{ selected_task.dueDate ? selected_task.dueDate|date('d.m.Y') : 'No due date' }}</dd></div><div><dt>Time</dt><dd>{{ selected_task.trackedSeconds|duration }} tracked / {{ selected_task.estimatedMinutes ?: 0 }} min estimated</dd></div><div><dt>Reminder</dt><dd>{{ selected_task.reminderAt ? selected_task.reminderAt|date('d.m.Y H:i') : 'None' }}</dd></div><div><dt>Recurrence</dt><dd>{{ selected_task.recurrence ? selected_task.recurrence|status_label : 'None' }}</dd></div><div><dt>Billing</dt><dd>{{ selected_task.billingType|status_label }}</dd></div></dl>
+            <dl class="task-summary-grid"><div><dt>Priority</dt><dd>{{ selected_task.priority|status_label }}</dd></div><div><dt>Completion</dt><dd>{{ selected_task.completionPercentage }}%</dd></div><div><dt>Assignees</dt><dd>{% for user in selected_task.assignees %}{{ user.fullName }}{% if not loop.last %}, {% endif %}{% else %}Unassigned{% endfor %}</dd></div><div><dt>Tags</dt><dd>{{ selected_task.tags ? selected_task.tags|join(', ') : 'None' }}</dd></div><div><dt>Schedule</dt><dd>{{ selected_task.startDate ? selected_task.startDate|date('d.m.Y') : 'No start' }} – {{ selected_task.dueDate ? selected_task.dueDate|date('d.m.Y') : 'No due date' }}</dd></div><div><dt>Time</dt><dd><span{% if is_active_timer %} data-live-duration data-base-seconds="{{ selected_task.trackedSeconds }}" data-start-timestamp="{{ active_task_entry.startedAt|date('U') }}"{% endif %}>{{ selected_task.trackedSeconds|duration }}</span> tracked / {{ selected_task.estimatedMinutes ?: 0 }} min estimated</dd></div><div><dt>Reminder</dt><dd>{{ selected_task.reminderAt ? selected_task.reminderAt|date('d.m.Y H:i') : 'None' }}</dd></div><div><dt>Recurrence</dt><dd>{{ selected_task.recurrence ? selected_task.recurrence|status_label : 'None' }}</dd></div><div><dt>Billing</dt><dd>{{ selected_task.billingType|status_label }}</dd></div></dl>
             {% if selected_task.description %}<div class="task-description">{{ selected_task.description|nl2br }}</div>{% endif %}
             {% if selected_task.managerNote %}<div class="manager-note"><strong>Manager note</strong><p>{{ selected_task.managerNote|nl2br }}</p></div>{% endif %}
         </div>

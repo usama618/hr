@@ -17,6 +17,19 @@ final class AdminTaskWorkspaceTest extends TestCase
         self::assertStringContainsString("data-task-toggle", $template);
         self::assertStringContainsString("admin_task_new", $template);
         self::assertStringContainsString("admin_task_show", $template);
+        self::assertStringContainsString('data-task-row-url', $template);
+        self::assertStringContainsString('task-timer-control', $template);
+        self::assertStringContainsString('admin_task_detail_timer_start', $template);
+        self::assertStringContainsString('admin_task_detail_timer_stop', $template);
+    }
+
+    public function testWorkspaceScriptMakesRowsClickableWithoutHijackingControls(): void
+    {
+        $base = file_get_contents(dirname(__DIR__, 2).'/templates/base.html.twig');
+        self::assertIsString($base);
+        self::assertStringContainsString("[data-task-row-url]", $base);
+        self::assertStringContainsString("closest('a, button, input, select, textarea, form')", $base);
+        self::assertStringContainsString("styles.css') }}?v=waldbyte-hr-19", $base);
     }
 
     public function testTaskFormExposesRichFieldsAndMultipleAssignees(): void

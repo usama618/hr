@@ -29,7 +29,7 @@
                 <div class="task-tree-scroll">
                     <table class="task-tree" role="treegrid" aria-label="Tasks for {{ selected_project.name }}">
                         <thead><tr><th>Task</th><th>Assignees</th><th>Status</th><th>Priority</th><th>Tags</th><th>Schedule</th><th>Time</th><th></th></tr></thead>
-                        <tbody>{% include 'admin/_task_tree_rows.html.twig' with {task_rows: task_rows, selected_project: selected_project} only %}</tbody>
+                        <tbody>{% include 'admin/_task_tree_rows.html.twig' with {task_rows: task_rows, selected_project: selected_project, active_task_entry: active_task_entry} only %}</tbody>
                     </table>
                 </div>
                 {% if task_rows is empty %}<div class="empty task-empty"><h3>No tasks in this project</h3><p class="muted">Create the first task to begin planning the work.</p><a class="button" href="{{ path('admin_task_new', {project: selected_project.id}) }}">Add Task</a></div>{% endif %}
@@ -40,6 +40,6 @@
     </div>
 
     {% if selected_task %}
-        {% include 'admin/_task_detail_panel.html.twig' with {selected_task: selected_task, selected_project: selected_project} only %}
+        {% include 'admin/_task_detail_panel.html.twig' with {selected_task: selected_task, selected_project: selected_project, active_task_entry: active_task_entry} only %}
     {% endif %}
 {% endblock %}

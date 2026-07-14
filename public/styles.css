@@ -2724,6 +2724,19 @@ form ul {
     background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
 }
 
+.task-tree-row[data-task-row-url] {
+    cursor: pointer;
+}
+
+.task-tree-row[data-task-row-url]:focus {
+    outline: none;
+}
+
+.task-tree-row[data-task-row-url]:focus td {
+    background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+    box-shadow: inset 0 2px 0 color-mix(in srgb, var(--primary) 42%, transparent), inset 0 -2px 0 color-mix(in srgb, var(--primary) 42%, transparent);
+}
+
 .task-tree-row.is-nested td:first-child {
     background-image: linear-gradient(90deg, color-mix(in srgb, var(--primary) 13%, transparent), transparent 72%);
 }
@@ -2837,6 +2850,11 @@ form ul {
     white-space: nowrap;
 }
 
+.task-row-actions form,
+.task-dialog-head .actions form {
+    margin: 0;
+}
+
 .task-row-actions a {
     border: 1px solid var(--line);
     border-radius: 5px;
@@ -2844,6 +2862,48 @@ form ul {
     font-size: 12px;
     font-weight: 800;
     padding: 5px 7px;
+}
+
+.task-timer-control {
+    align-items: center;
+    background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+    border: 1px solid color-mix(in srgb, var(--primary) 38%, var(--line));
+    border-radius: 50%;
+    color: var(--primary-dark);
+    display: inline-flex;
+    height: 30px;
+    justify-content: center;
+    min-height: 0;
+    padding: 0;
+    width: 30px;
+}
+
+.task-timer-control:hover {
+    background: color-mix(in srgb, var(--primary) 18%, var(--surface));
+}
+
+.task-timer-control.is-active {
+    animation: task-timer-pulse 1.8s ease-in-out infinite;
+    background: var(--danger-soft);
+    border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+    color: var(--danger);
+}
+
+.task-timer-control svg {
+    fill: currentColor;
+    height: 15px;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    width: 15px;
+}
+
+.task-timer-control--detail {
+    height: 38px;
+    width: 38px;
+}
+
+@keyframes task-timer-pulse {
+    50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--danger) 12%, transparent); }
 }
 
 .task-empty {

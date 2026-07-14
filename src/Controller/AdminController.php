@@ -238,7 +238,7 @@ class AdminController extends AbstractController
     }
 
     #[Route('/tasks', name: 'tasks')]
-    public function tasks(Request $request, EntityManagerInterface $entityManager, TaskRepository $tasks, TaskHierarchyService $hierarchy): Response
+    public function tasks(Request $request, EntityManagerInterface $entityManager, TaskRepository $tasks, TaskHierarchyService $hierarchy, TaskTimeEntryRepository $taskTimeEntries): Response
     {
         $projects = $entityManager->getRepository(Project::class)->findBy([], ['name' => 'ASC']);
         usort($projects, static fn (Project $a, Project $b): int => [$a->getStatus() !== 'active', strtolower($a->getName())] <=> [$b->getStatus() !== 'active', strtolower($b->getName())]);
@@ -260,6 +260,7 @@ class AdminController extends AbstractController
             'selected_project' => $selectedProject,
             'task_rows' => $hierarchy->buildTree($workspaceTasks),
             'selected_task' => $selectedTask,
+            'active_task_entry' => $taskTimeEntries->findOpenForUser($this->getAuthenticatedUser()),
         ]);
     }
 

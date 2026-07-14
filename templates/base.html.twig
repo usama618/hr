@@ -16,7 +16,7 @@
                 }
             })();
         </script>
-        <link rel="stylesheet" href="{{ asset('styles.css') }}?v=waldbyte-hr-18">
+        <link rel="stylesheet" href="{{ asset('styles.css') }}?v=waldbyte-hr-19">
         {% block stylesheets %}
         {% endblock %}
 
@@ -615,6 +615,23 @@
                         }
                         sessionStorage.setItem(storageKey, JSON.stringify(Array.from(expanded)));
                         render();
+                    });
+                });
+
+                workspace.querySelectorAll('[data-task-row-url]').forEach((row) => {
+                    const openTask = () => window.location.assign(row.dataset.taskRowUrl);
+                    row.addEventListener('click', (event) => {
+                        if (event.target.closest('a, button, input, select, textarea, form')) {
+                            return;
+                        }
+                        openTask();
+                    });
+                    row.addEventListener('keydown', (event) => {
+                        if (event.target !== row || !['Enter', ' '].includes(event.key)) {
+                            return;
+                        }
+                        event.preventDefault();
+                        openTask();
                     });
                 });
                 render();

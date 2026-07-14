@@ -9,6 +9,7 @@ use App\Entity\TaskProblem;
 use App\Entity\TaskStatusHistory;
 use App\Entity\TaskTimeEntry;
 use App\Entity\User;
+use App\Repository\TaskTimeEntryRepository;
 use App\Service\TaskActivityService;
 use App\Service\TaskHierarchyService;
 use App\Service\TaskLifecycleService;
@@ -31,7 +32,7 @@ final class AdminTaskController extends AbstractController
     private const ALLOWED_MIME_TYPES = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'image/jpeg', 'image/png', 'image/webp', 'text/plain'];
 
     #[Route('/{id}/status', name: 'status', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function status(Task $task, Request $request, EntityManagerInterface $em, TaskLifecycleService $lifecycle): RedirectResponse
+    public function status(Task $task, Request $request, EntityManagerInterface $em, TaskLifecycleService $lifecycle, TaskTimeEntryRepository $taskTimeEntries): RedirectResponse
     {
         $this->guardCsrf($request, 'task_status_'.$task->getId());
         $status = (string) $request->request->get('status');
@@ -39,7 +40,11 @@ final class AdminTaskController extends AbstractController
             $this->addFlash('error', 'Choose a valid task status.'); return $this->workspaceRedirect($task);
         }
         if ($task->getStatus() !== $status) {
-            if ($next = $lifecycle->transition($task, $status, $this->getAuthenticatedUser())) { $em->persist($next); }
+            $user = $this->getAuthenticatedUser();
+            if ($status !== Task::STATUS_IN_PROGRESS) {
+                $taskTimeEntries->findOpenForUserAndTask($user, $task)?->setEndedAt(new \DateTimeImmutable());
+            }
+            if ($next = $lifecycle->transition($task, $status, $user)) { $em->persist($next); }
             $em->flush();
         }
         return $this->workspaceRedirect($task);
@@ -58,6 +63,58 @@ final class AdminTaskController extends AbstractController
         $activity->record($task, $this->getAuthenticatedUser(), 'time_logged', $minutes.' minutes logged for '.$employee->getFullName().'.', ['minutes' => $minutes]);
         $em->flush();
         return $this->workspaceRedirect($task);
+    }
+
+    #[Route('/{id}/timer/start', name: 'timer_start', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function timerStart(Task $task, Request $request, TaskTimeEntryRepository $taskTimeEntries, EntityManagerInterface $em, TaskLifecycleService $lifecycle, TaskActivityService $activity): RedirectResponse
+    {
+        $this->guardCsrf($request, 'task_timer_'.$task->getId());
+        if ($task->getStatus() === Task::STATUS_COMPLETED) {
+            $this->addFlash('error', 'Reopen the task before starting its timer.');
+
+            return $this->timerRedirect($task, $request);
+        }
+
+        $user = $this->getAuthenticatedUser();
+        $openEntry = $taskTimeEntries->findOpenForUser($user);
+        if ($openEntry?->getTask() === $task) {
+            return $this->timerRedirect($task, $request);
+        }
+
+        $now = new \DateTimeImmutable();
+        if ($openEntry) {
+            $openEntry->setEndedAt($now);
+            $previousTask = $openEntry->getTask();
+            if ($previousTask && $previousTask->getStatus() !== Task::STATUS_COMPLETED) {
+                if ($next = $lifecycle->transition($previousTask, Task::STATUS_PAUSED, $user)) { $em->persist($next); }
+            }
+        }
+
+        $entry = (new TaskTimeEntry())->setTask($task)->setEmployee($user)->setStartedAt($now);
+        $em->persist($entry);
+        if ($next = $lifecycle->transition($task, Task::STATUS_IN_PROGRESS, $user)) { $em->persist($next); }
+        $activity->record($task, $user, 'timer_started', 'Task timer started.');
+        $em->flush();
+
+        return $this->timerRedirect($task, $request);
+    }
+
+    #[Route('/{id}/timer/stop', name: 'timer_stop', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function timerStop(Task $task, Request $request, TaskTimeEntryRepository $taskTimeEntries, EntityManagerInterface $em, TaskLifecycleService $lifecycle, TaskActivityService $activity): RedirectResponse
+    {
+        $this->guardCsrf($request, 'task_timer_'.$task->getId());
+        $user = $this->getAuthenticatedUser();
+        $entry = $taskTimeEntries->findOpenForUserAndTask($user, $task);
+        if ($entry) {
+            $entry->setEndedAt(new \DateTimeImmutable());
+            if ($task->getStatus() !== Task::STATUS_COMPLETED) {
+                if ($next = $lifecycle->transition($task, Task::STATUS_PAUSED, $user)) { $em->persist($next); }
+            }
+            $activity->record($task, $user, 'timer_stopped', 'Task timer stopped.');
+            $em->flush();
+        }
+
+        return $this->timerRedirect($task, $request);
     }
 
     #[Route('/{id}/documents/upload', name: 'document_upload', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -133,6 +190,7 @@ final class AdminTaskController extends AbstractController
     }
 
     private function workspaceRedirect(Task $task, bool $keepPanel = true): RedirectResponse { return $this->redirectToRoute('admin_tasks', ['project' => $task->getProject()?->getId(), 'task' => $keepPanel ? $task->getId() : null]); }
+    private function timerRedirect(Task $task, Request $request): RedirectResponse { return $this->workspaceRedirect($task, $request->request->get('return_to') !== 'list'); }
     private function storageDir(KernelInterface $kernel): string { $dir = $kernel->getProjectDir().'/var/task-documents'; if (!is_dir($dir)) { mkdir($dir, 0775, true); } return $dir; }
     private function guardCsrf(Request $request, string $id): void { if (!$this->isCsrfTokenValid($id, (string) $request->request->get('_token'))) { throw $this->createAccessDeniedException('Invalid CSRF token.'); } }
     private function getAuthenticatedUser(): User { $user = $this->getUser(); if (!$user instanceof User) { throw $this->createAccessDeniedException(); } return $user; }
