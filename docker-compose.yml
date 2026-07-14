@@ -6,6 +6,7 @@ services:
     volumes:
       - profile_uploads:/app/public/uploads/profiles
       - document_uploads:/app/var/documents
+      - task_document_uploads:/app/var/task-documents
     environment:
       APP_ENV: dev
       APP_SECRET: change-me-in-production
@@ -36,3 +37,4 @@ volumes:
   mysql_data:
   profile_uploads:
   document_uploads:
+  task_document_uploads:

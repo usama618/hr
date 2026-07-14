@@ -16,7 +16,7 @@
                 }
             })();
         </script>
-        <link rel="stylesheet" href="{{ asset('styles.css') }}?v=waldbyte-hr-17">
+        <link rel="stylesheet" href="{{ asset('styles.css') }}?v=waldbyte-hr-18">
         {% block stylesheets %}
         {% endblock %}
 
@@ -559,6 +559,109 @@
                         }
                     });
                 });
+            });
+
+            document.querySelectorAll('[data-task-workspace]').forEach((workspace) => {
+                const rows = Array.from(workspace.querySelectorAll('[data-task-id]'));
+                const projectId = workspace.dataset.projectId || '0';
+                const storageKey = `waldbyte.taskWorkspace.expanded.${projectId}`;
+                let expanded = new Set();
+                try {
+                    expanded = new Set(JSON.parse(sessionStorage.getItem(storageKey) || '[]').map(String));
+                } catch (error) {
+                    expanded = new Set();
+                }
+
+                const childrenOf = (id) => rows.filter((row) => row.dataset.taskParent === String(id));
+                const hideBranch = (id) => {
+                    childrenOf(id).forEach((row) => {
+                        row.hidden = true;
+                        hideBranch(row.dataset.taskId);
+                    });
+                };
+                const renderBranch = (id) => {
+                    childrenOf(id).forEach((row) => {
+                        row.hidden = false;
+                        if (expanded.has(row.dataset.taskId)) {
+                            renderBranch(row.dataset.taskId);
+                        } else {
+                            hideBranch(row.dataset.taskId);
+                        }
+                    });
+                };
+                const render = () => {
+                    rows.filter((row) => !row.dataset.taskParent).forEach((row) => {
+                        row.hidden = false;
+                        if (expanded.has(row.dataset.taskId)) {
+                            renderBranch(row.dataset.taskId);
+                        } else {
+                            hideBranch(row.dataset.taskId);
+                        }
+                    });
+                    workspace.querySelectorAll('[data-task-toggle]').forEach((button) => {
+                        const open = expanded.has(String(button.dataset.taskToggle));
+                        button.setAttribute('aria-expanded', open ? 'true' : 'false');
+                        button.classList.toggle('is-open', open);
+                    });
+                };
+
+                workspace.querySelectorAll('[data-task-toggle]').forEach((button) => {
+                    button.addEventListener('click', () => {
+                        const id = String(button.dataset.taskToggle);
+                        if (expanded.has(id)) {
+                            expanded.delete(id);
+                        } else {
+                            expanded.add(id);
+                        }
+                        sessionStorage.setItem(storageKey, JSON.stringify(Array.from(expanded)));
+                        render();
+                    });
+                });
+                render();
+            });
+
+            document.querySelectorAll('[data-task-dialog]').forEach((dialog) => {
+                const closeLink = dialog.querySelector('[data-task-dialog-close]');
+                const focusableSelector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
+                const focusable = () => Array.from(dialog.querySelectorAll(focusableSelector)).filter((element) => !element.closest('[hidden]'));
+                document.body.classList.add('has-task-dialog');
+                (dialog.querySelector('select, button, a') || dialog).focus();
+
+                dialog.addEventListener('keydown', (event) => {
+                    if (event.key === 'Escape' && closeLink) {
+                        closeLink.click();
+                        return;
+                    }
+                    if (event.key !== 'Tab') {
+                        return;
+                    }
+                    const items = focusable();
+                    if (!items.length) {
+                        return;
+                    }
+                    const first = items[0];
+                    const last = items[items.length - 1];
+                    if (event.shiftKey && document.activeElement === first) {
+                        event.preventDefault();
+                        last.focus();
+                    } else if (!event.shiftKey && document.activeElement === last) {
+                        event.preventDefault();
+                        first.focus();
+                    }
+                });
+
+                const tabs = Array.from(dialog.querySelectorAll('[data-task-tab]'));
+                const panels = Array.from(dialog.querySelectorAll('[data-task-panel]'));
+                tabs.forEach((tab) => tab.addEventListener('click', () => {
+                    tabs.forEach((item) => {
+                        const active = item === tab;
+                        item.classList.toggle('active', active);
+                        item.setAttribute('aria-selected', active ? 'true' : 'false');
+                    });
+                    panels.forEach((panel) => {
+                        panel.hidden = panel.dataset.taskPanel !== tab.dataset.taskTab;
+                    });
+                }));
             });
 
             document.querySelectorAll('[data-rich-text]').forEach((wrapper) => {
