@@ -88,9 +88,12 @@ class Task
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $managerNote = null;
 
-    #[ORM\ManyToOne(targetEntity: self::class)]
+    #[ORM\OneToOne(targetEntity: self::class, inversedBy: 'nextOccurrence')]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?self $sourceOccurrence = null;
+
+    #[ORM\OneToOne(targetEntity: self::class, mappedBy: 'sourceOccurrence')]
+    private ?self $nextOccurrence = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -293,7 +296,9 @@ class Task
     public function getManagerNote(): ?string { return $this->managerNote; }
     public function setManagerNote(?string $managerNote): self { $managerNote = $managerNote !== null ? trim($managerNote) : null; $this->managerNote = $managerNote ?: null; return $this; }
     public function getSourceOccurrence(): ?self { return $this->sourceOccurrence; }
-    public function setSourceOccurrence(?self $sourceOccurrence): self { $this->sourceOccurrence = $sourceOccurrence; return $this; }
+    public function setSourceOccurrence(?self $sourceOccurrence): self { $this->sourceOccurrence = $sourceOccurrence; if ($sourceOccurrence && $sourceOccurrence->getNextOccurrence() !== $this) { $sourceOccurrence->setNextOccurrence($this); } return $this; }
+    public function getNextOccurrence(): ?self { return $this->nextOccurrence; }
+    public function setNextOccurrence(?self $nextOccurrence): self { $this->nextOccurrence = $nextOccurrence; if ($nextOccurrence && $nextOccurrence->getSourceOccurrence() !== $this) { $nextOccurrence->setSourceOccurrence($this); } return $this; }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     /** @return Collection<int, TaskTimeEntry> */
     public function getTimeEntries(): Collection { return $this->timeEntries; }
