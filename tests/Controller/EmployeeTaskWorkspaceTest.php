@@ -37,4 +37,22 @@ final class EmployeeTaskWorkspaceTest extends TestCase
             self::assertStringContainsString($needle, $templates);
         }
     }
+
+    public function testEmployeesCanCreateRecursiveSubtasksFromTheWorkspace(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $dialogPath = $root.'/templates/employee/_task_create_dialog.html.twig';
+        self::assertFileExists($dialogPath);
+
+        $controller = file_get_contents($root.'/src/Controller/EmployeeController.php');
+        $rows = file_get_contents($root.'/templates/employee/_task_tree_rows.html.twig');
+        $dialog = file_get_contents($dialogPath);
+        self::assertIsString($controller);
+        self::assertIsString($rows);
+        self::assertIsString($dialog);
+        self::assertStringContainsString("request->request->get('parent_id'", $controller);
+        self::assertStringContainsString('assertValidParent', $controller);
+        self::assertStringContainsString('parent: task.id', $rows);
+        self::assertStringContainsString('name="parent_id"', $dialog);
+    }
 }

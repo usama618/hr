@@ -2751,6 +2751,14 @@ form ul {
     padding: 6px 26px 6px 8px;
 }
 
+.employee-task-create-surface {
+    inset: 7vh max(8vw, calc((100vw - 980px) / 2));
+}
+
+.employee-task-dialog-form {
+    padding-top: 22px;
+}
+
 .task-tree-row.is-nested td:first-child {
     background-image: linear-gradient(90deg, color-mix(in srgb, var(--primary) 13%, transparent), transparent 72%);
 }

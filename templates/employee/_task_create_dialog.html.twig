@@ -1,0 +1,22 @@
+<section class="task-detail-dialog employee-task-create-dialog" data-task-dialog aria-labelledby="employee-task-create-title" role="dialog" aria-modal="true">
+    <a class="task-dialog-backdrop" href="{{ path('employee_dashboard', {tab: 'tasks', project: selected_task_project.id}) }}" aria-label="Close task creation"></a>
+    <div class="task-dialog-surface employee-task-create-surface">
+        <header class="task-dialog-head">
+            <div>
+                <span class="panel-label">{{ selected_parent_task ? 'Subtask' : 'Task' }}</span>
+                <h2 id="employee-task-create-title">{{ selected_parent_task ? 'Add Subtask' : 'Add Task' }}</h2>
+                <p class="muted">{{ selected_task_project.name }}{% if selected_parent_task %} · Under {{ selected_parent_task.title }}{% endif %}</p>
+            </div>
+            <a class="task-dialog-close" data-task-dialog-close href="{{ path('employee_dashboard', {tab: 'tasks', project: selected_task_project.id}) }}" aria-label="Close">×</a>
+        </header>
+
+        {{ form_start(task_form, {attr: {class: 'task-create-form employee-task-dialog-form'}}) }}
+            <input type="hidden" name="parent_id" value="{{ selected_parent_task ? selected_parent_task.id : 0 }}">
+            <div class="form-grid">{{ form_row(task_form.project) }}{{ form_row(task_form.assignees) }}</div>
+            {{ form_row(task_form.title) }}
+            {{ form_row(task_form.description) }}
+            <div class="form-grid">{{ form_row(task_form.priority) }}{{ form_row(task_form.estimatedMinutes) }}</div>
+            <div class="actions"><button type="submit">{{ selected_parent_task ? 'Create Subtask' : 'Create Task' }}</button><a class="button button-secondary" href="{{ path('employee_dashboard', {tab: 'tasks', project: selected_task_project.id}) }}">Cancel</a></div>
+        {{ form_end(task_form) }}
+    </div>
+</section>

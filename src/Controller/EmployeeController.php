@@ -76,11 +76,15 @@ class EmployeeController extends AbstractController
         $selectedTaskProject ??= $employeeProjects[0] ?? null;
         $workspaceTasks = $selectedTaskProject ? $tasks->findWorkspaceTasks($selectedTaskProject) : [];
         $selectedEmployeeTask = null;
+        $selectedParentTask = null;
         $taskId = (int) $request->query->get('task', 0);
+        $parentId = (int) $request->query->get('parent', 0);
         foreach ($workspaceTasks as $workspaceTask) {
             if ($workspaceTask->getId() === $taskId) {
                 $selectedEmployeeTask = $workspaceTask;
-                break;
+            }
+            if ($workspaceTask->getId() === $parentId) {
+                $selectedParentTask = $workspaceTask;
             }
         }
         $taskForm = null;
@@ -89,6 +93,7 @@ class EmployeeController extends AbstractController
             $taskDraft = (new Task())
                 ->addAssignee($employee)
                 ->setProject($selectedTaskProject)
+                ->setParent($selectedParentTask)
                 ->setEstimatedMinutes(0);
             $taskForm = $this->createForm(EmployeeTaskFormType::class, $taskDraft, [
                 'action' => $this->generateUrl('employee_task_create'),
@@ -114,6 +119,7 @@ class EmployeeController extends AbstractController
             'selected_task_project' => $selectedTaskProject,
             'employee_task_rows' => $hierarchy->buildTree($workspaceTasks),
             'selected_employee_task' => $selectedEmployeeTask,
+            'selected_parent_task' => $selectedParentTask,
         ]);
     }
 
@@ -218,6 +224,7 @@ class EmployeeController extends AbstractController
         UserRepository $users,
         EntityManagerInterface $entityManager,
         NotificationService $notifications,
+        TaskHierarchyService $hierarchy,
     ): Response {
         $employee = $this->getEmployeeUser();
         $task = (new Task())
@@ -234,10 +241,25 @@ class EmployeeController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             $project = $task->getProject();
+            $parentId = (int) $request->request->get('parent_id', 0);
+            $parent = $parentId > 0 ? $entityManager->getRepository(Task::class)->find($parentId) : null;
             if (!$project || !$employee->getProjects()->contains($project)) {
                 $this->addFlash('error', 'Choose a project you have access to.');
 
                 return $this->redirect($this->generateUrl('employee_dashboard').'?tab=tasks');
+            }
+            if ($parentId > 0 && (!$parent instanceof Task || $parent->getProject() !== $project)) {
+                $this->addFlash('error', 'Choose a parent task from the same project.');
+
+                return $this->redirectToTaskCreation($project, null);
+            }
+            try {
+                $task->setParent($parent);
+                $hierarchy->assertValidParent($task, $parent);
+            } catch (\DomainException $exception) {
+                $this->addFlash('error', $exception->getMessage());
+
+                return $this->redirectToTaskCreation($project, $parent);
             }
 
             $assigneesAreValid = !$task->getAssignees()->isEmpty();
@@ -247,7 +269,7 @@ class EmployeeController extends AbstractController
             if (!$assigneesAreValid) {
                 $this->addFlash('error', 'Choose an active employee for the task.');
 
-                return $this->redirect($this->generateUrl('employee_dashboard').'?tab=tasks');
+                return $this->redirectToTaskCreation($project, $parent);
             }
 
             $this->grantProjectAccessForAssignee($task);
@@ -257,12 +279,18 @@ class EmployeeController extends AbstractController
             $entityManager->flush();
             $this->addFlash('success', 'Task created.');
 
-            return $this->redirect($this->generateUrl('employee_dashboard').'?tab=tasks');
+            return $this->redirectToRoute('employee_dashboard', [
+                'tab' => 'tasks',
+                'project' => $project->getId(),
+                'task' => $task->getId(),
+            ]);
         }
 
         $this->addFlash('error', 'Please check the task form.');
 
-        return $this->redirect($this->generateUrl('employee_dashboard').'?tab=tasks');
+        $project = $task->getProject();
+
+        return $project ? $this->redirectToTaskCreation($project, $task->getParent()) : $this->redirect($this->generateUrl('employee_dashboard').'?tab=tasks');
     }
 
     #[Route('/tasks/{id}/comments', name: 'task_comment', methods: ['POST'])]
@@ -695,6 +723,16 @@ class EmployeeController extends AbstractController
             'project' => $this->redirectToRoute('employee_project_show', ['id' => $task->getProject()?->getId()]),
             default => $this->redirect($this->generateUrl('employee_dashboard').'?tab=tasks'),
         };
+    }
+
+    private function redirectToTaskCreation(Project $project, ?Task $parent): Response
+    {
+        return $this->redirectToRoute('employee_dashboard', [
+            'tab' => 'tasks',
+            'project' => $project->getId(),
+            'create' => 1,
+            'parent' => $parent?->getId(),
+        ]);
     }
 
     private function denyUnlessCommentOwner(TaskComment $comment, User $employee): void
