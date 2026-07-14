@@ -104,6 +104,29 @@ class Task
     #[ORM\OrderBy(['createdAt' => 'ASC'])]
     private Collection $comments;
 
+    /** @var Collection<int, TaskDocument> */
+    #[ORM\OneToMany(mappedBy: 'task', targetEntity: TaskDocument::class, cascade: ['persist'], orphanRemoval: true)]
+    private Collection $documents;
+
+    /** @var Collection<int, TaskDependency> */
+    #[ORM\OneToMany(mappedBy: 'task', targetEntity: TaskDependency::class, cascade: ['persist'], orphanRemoval: true)]
+    private Collection $dependencies;
+
+    /** @var Collection<int, TaskProblem> */
+    #[ORM\OneToMany(mappedBy: 'task', targetEntity: TaskProblem::class, cascade: ['persist'], orphanRemoval: true)]
+    #[ORM\OrderBy(['createdAt' => 'DESC'])]
+    private Collection $problems;
+
+    /** @var Collection<int, TaskStatusHistory> */
+    #[ORM\OneToMany(mappedBy: 'task', targetEntity: TaskStatusHistory::class, cascade: ['persist'], orphanRemoval: true)]
+    #[ORM\OrderBy(['createdAt' => 'DESC'])]
+    private Collection $statusHistory;
+
+    /** @var Collection<int, TaskActivity> */
+    #[ORM\OneToMany(mappedBy: 'task', targetEntity: TaskActivity::class, cascade: ['persist'], orphanRemoval: true)]
+    #[ORM\OrderBy(['createdAt' => 'DESC'])]
+    private Collection $activities;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -111,6 +134,11 @@ class Task
         $this->assignees = new ArrayCollection();
         $this->timeEntries = new ArrayCollection();
         $this->comments = new ArrayCollection();
+        $this->documents = new ArrayCollection();
+        $this->dependencies = new ArrayCollection();
+        $this->problems = new ArrayCollection();
+        $this->statusHistory = new ArrayCollection();
+        $this->activities = new ArrayCollection();
     }
 
     public function __toString(): string { return $this->title; }
@@ -283,6 +311,23 @@ class Task
         if ($this->comments->removeElement($comment) && $comment->getTask() === $this) { $comment->setTask(null); }
         return $this;
     }
+
+    /** @return Collection<int, TaskDocument> */
+    public function getDocuments(): Collection { return $this->documents; }
+    public function addDocument(TaskDocument $document): self { if (!$this->documents->contains($document)) { $this->documents->add($document); $document->setTask($this); } return $this; }
+    public function removeDocument(TaskDocument $document): self { if ($this->documents->removeElement($document) && $document->getTask() === $this) { $document->setTask(null); } return $this; }
+    /** @return Collection<int, TaskDependency> */
+    public function getDependencies(): Collection { return $this->dependencies; }
+    public function addDependency(TaskDependency $dependency): self { if (!$this->dependencies->contains($dependency)) { $this->dependencies->add($dependency); $dependency->setTask($this); } return $this; }
+    /** @return Collection<int, TaskProblem> */
+    public function getProblems(): Collection { return $this->problems; }
+    public function addProblem(TaskProblem $problem): self { if (!$this->problems->contains($problem)) { $this->problems->add($problem); $problem->setTask($this); } return $this; }
+    /** @return Collection<int, TaskStatusHistory> */
+    public function getStatusHistory(): Collection { return $this->statusHistory; }
+    public function addStatusHistory(TaskStatusHistory $history): self { if (!$this->statusHistory->contains($history)) { $this->statusHistory->add($history); $history->setTask($this); } return $this; }
+    /** @return Collection<int, TaskActivity> */
+    public function getActivities(): Collection { return $this->activities; }
+    public function addActivity(TaskActivity $activity): self { if (!$this->activities->contains($activity)) { $this->activities->add($activity); $activity->setTask($this); } return $this; }
 
     public function getTrackedSeconds(): int
     {
