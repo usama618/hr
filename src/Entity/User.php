@@ -67,7 +67,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     /**
      * @var Collection<int, Task>
      */
-    #[ORM\OneToMany(mappedBy: 'assignedTo', targetEntity: Task::class)]
+    #[ORM\ManyToMany(targetEntity: Task::class, mappedBy: 'assignees')]
     private Collection $tasks;
 
     public function __construct()
@@ -267,5 +267,22 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getTasks(): Collection
     {
         return $this->tasks;
+    }
+
+    public function addTask(Task $task): self
+    {
+        if (!$this->tasks->contains($task)) {
+            $this->tasks->add($task);
+            $task->addAssignee($this);
+        }
+        return $this;
+    }
+
+    public function removeTask(Task $task): self
+    {
+        if ($this->tasks->removeElement($task)) {
+            $task->removeAssignee($this);
+        }
+        return $this;
     }
 }
