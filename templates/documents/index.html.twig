@@ -25,7 +25,11 @@
         <article class="card">
             <span class="panel-label">Access</span>
             <h2>Scope</h2>
-            <p class="muted">Company documents are visible to everyone. Personal documents are owner-only.</p>
+            {% if can_upload_company_documents %}
+                <p class="muted">Choose all employees for company documents, or one employee for private files.</p>
+            {% else %}
+                <p class="muted">Documents you upload are private to your account. Company documents are added by admins.</p>
+            {% endif %}
         </article>
     </section>
 
@@ -56,6 +60,8 @@
                             {% endfor %}
                         </select>
                     </label>
+                {% else %}
+                    <p class="muted document-upload-note">Your upload will be saved as a private personal document.</p>
                 {% endif %}
                 <label>
                     <span>Description</span>
