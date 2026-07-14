@@ -18,15 +18,15 @@ class NotificationService
     ) {
     }
 
-    public function notifyTaskAssigned(Task $task, ?User $actor = null): void
+    /** @param iterable<User> $previousAssignees */
+    public function notifyTaskAssigned(Task $task, ?User $actor = null, iterable $previousAssignees = []): void
     {
-        $assignee = $task->getAssignedTo();
-        if (!$assignee) {
-            return;
-        }
+        $previousIds = [];
+        foreach ($previousAssignees as $assignee) { if ($assignee->getId()) { $previousIds[$assignee->getId()] = true; } }
+        $recipients = array_values(array_filter($task->getAssignees()->toArray(), static fn (User $assignee): bool => !$assignee->getId() || !isset($previousIds[$assignee->getId()])));
 
         $this->notifyRecipients(
-            [$assignee],
+            $recipients,
             $actor,
             $task,
             'task_assigned',
@@ -46,15 +46,12 @@ class NotificationService
             sprintf('%s created the task %s.', $actor->getFullName(), $task->getTitle()),
         );
 
-        $assignee = $task->getAssignedTo();
-        if ($assignee && $assignee->getId() !== $actor->getId()) {
-            $this->notifyTaskAssigned($task, $actor);
-        }
+        $this->notifyTaskAssigned($task, $actor);
     }
 
     public function notifyTaskCommented(Task $task, User $actor): void
     {
-        $recipients = [$task->getAssignedTo(), $task->getCreatedBy()];
+        $recipients = array_merge($task->getAssignees()->toArray(), [$task->getCreatedBy()]);
 
         if ($actor->getRole() === User::ROLE_EMPLOYEE) {
             $recipients = array_merge($recipients, $this->users->findActiveSuperAdmins());
@@ -76,7 +73,7 @@ class NotificationService
             return;
         }
 
-        $recipients = [$task->getAssignedTo(), $task->getCreatedBy()];
+        $recipients = array_merge($task->getAssignees()->toArray(), [$task->getCreatedBy()]);
 
         if ($actor->getRole() === User::ROLE_EMPLOYEE || $task->getStatus() === Task::STATUS_COMPLETED) {
             $recipients = array_merge($recipients, $this->users->findActiveSuperAdmins());

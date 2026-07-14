@@ -199,7 +199,7 @@
                 {{ form_start(task_form, {attr: {class: 'task-create-form'}}) }}
                     <div class="form-grid">
                         {{ form_row(task_form.project) }}
-                        {{ form_row(task_form.assignedTo) }}
+                        {{ form_row(task_form.assignees) }}
                     </div>
                     {{ form_row(task_form.title) }}
                     {{ form_row(task_form.description) }}
@@ -220,7 +220,7 @@
         <div class="stack">
             {% for task in tasks %}
                 {% set is_active_task = active_task_entry and active_task_entry.task.id == task.id %}
-                {% set is_assigned_to_me = task.assignedTo and task.assignedTo.id == employee.id %}
+                {% set is_assigned_to_me = employee in task.assignees %}
                 <article class="card task-card{% if task.status == 'completed' %} is-completed{% endif %}">
                     <div class="page-title compact-title">
                         <div>
@@ -232,8 +232,8 @@
                             </h3>
                             <div class="muted">
                                 {{ task.project.name }} · {{ task.status|status_label }}
-                                {% if task.assignedTo %}
-                                    · Assigned to {{ task.assignedTo.fullName }}
+                                {% if task.assignees|length %}
+                                    · Assigned to {% for assignee in task.assignees %}{{ assignee.fullName }}{% if not loop.last %}, {% endif %}{% endfor %}
                                 {% endif %}
                                 {% if task.comments|length %}
                                     · {{ task.comments|length }} comments
@@ -288,8 +288,8 @@
                         {% elseif not is_assigned_to_me %}
                             {% if task.status == 'completed' %}
                                 <span class="badge badge-success">Completed</span>
-                            {% elseif task.assignedTo %}
-                                <span class="badge">Waiting on {{ task.assignedTo.fullName }}</span>
+                            {% elseif task.assignees|length %}
+                                <span class="badge">Waiting on {% for assignee in task.assignees %}{{ assignee.fullName }}{% if not loop.last %}, {% endif %}{% endfor %}</span>
                             {% else %}
                                 <span class="badge">Unassigned</span>
                             {% endif %}

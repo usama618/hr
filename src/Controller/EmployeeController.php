@@ -64,7 +64,7 @@ class EmployeeController extends AbstractController
 
         if ($employeeProjects !== []) {
             $taskDraft = (new Task())
-                ->setAssignedTo($employee)
+                ->addAssignee($employee)
                 ->setEstimatedMinutes(0);
             $taskForm = $this->createForm(EmployeeTaskFormType::class, $taskDraft, [
                 'action' => $this->generateUrl('employee_task_create'),
@@ -193,7 +193,7 @@ class EmployeeController extends AbstractController
     ): Response {
         $employee = $this->getEmployeeUser();
         $task = (new Task())
-            ->setAssignedTo($employee)
+            ->addAssignee($employee)
             ->setCreatedBy($employee)
             ->setStatus(Task::STATUS_TODO)
             ->setEstimatedMinutes(0);
@@ -206,15 +206,17 @@ class EmployeeController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             $project = $task->getProject();
-            $assignee = $task->getAssignedTo();
-
             if (!$project || !$employee->getProjects()->contains($project)) {
                 $this->addFlash('error', 'Choose a project you have access to.');
 
                 return $this->redirect($this->generateUrl('employee_dashboard').'?tab=tasks');
             }
 
-            if (!$assignee || $assignee->getRole() !== User::ROLE_EMPLOYEE || !$assignee->isActive()) {
+            $assigneesAreValid = !$task->getAssignees()->isEmpty();
+            foreach ($task->getAssignees() as $assignee) {
+                $assigneesAreValid = $assigneesAreValid && $assignee->getRole() === User::ROLE_EMPLOYEE && $assignee->isActive();
+            }
+            if (!$assigneesAreValid) {
                 $this->addFlash('error', 'Choose an active employee for the task.');
 
                 return $this->redirect($this->generateUrl('employee_dashboard').'?tab=tasks');
@@ -565,11 +567,11 @@ class EmployeeController extends AbstractController
             ->createQueryBuilder('t')
             ->leftJoin('t.project', 'p')
             ->addSelect('p')
-            ->leftJoin('t.assignedTo', 'assignee')
+            ->leftJoin('t.assignees', 'assignee')
             ->addSelect('assignee')
             ->leftJoin('t.createdBy', 'creator')
             ->addSelect('creator')
-            ->andWhere('t.assignedTo = :employee OR t.createdBy = :employee')
+            ->andWhere('assignee = :employee OR t.createdBy = :employee')
             ->setParameter('employee', $employee)
             ->orderBy('t.createdAt', 'DESC')
             ->getQuery()
@@ -583,7 +585,7 @@ class EmployeeController extends AbstractController
     {
         return $entityManager->getRepository(Task::class)
             ->createQueryBuilder('t')
-            ->leftJoin('t.assignedTo', 'assignee')
+            ->leftJoin('t.assignees', 'assignee')
             ->addSelect('assignee')
             ->leftJoin('t.createdBy', 'creator')
             ->addSelect('creator')
@@ -616,16 +618,16 @@ class EmployeeController extends AbstractController
     private function grantProjectAccessForAssignee(Task $task): void
     {
         $project = $task->getProject();
-        $assignee = $task->getAssignedTo();
-
-        if ($project && $assignee && !$project->getEmployees()->contains($assignee)) {
-            $project->addEmployee($assignee);
+        foreach ($task->getAssignees() as $assignee) {
+            if ($project && !$project->getEmployees()->contains($assignee)) {
+                $project->addEmployee($assignee);
+            }
         }
     }
 
     private function denyUnlessAssigned(Task $task, User $employee): void
     {
-        if ($task->getAssignedTo()?->getId() !== $employee->getId() || !$task->getProject()?->getEmployees()->contains($employee)) {
+        if (!$task->isAssignedTo($employee) || !$task->getProject()?->getEmployees()->contains($employee)) {
             throw $this->createAccessDeniedException();
         }
     }
@@ -639,13 +641,13 @@ class EmployeeController extends AbstractController
 
     private function canUpdateAssignedTask(Task $task, User $employee): bool
     {
-        return $task->getAssignedTo()?->getId() === $employee->getId()
+        return $task->isAssignedTo($employee)
             && $task->getProject()?->getEmployees()->contains($employee);
     }
 
     private function denyUnlessTaskVisible(Task $task, User $employee): void
     {
-        $isAssignee = $task->getAssignedTo()?->getId() === $employee->getId();
+        $isAssignee = $task->isAssignedTo($employee);
         $isCreator = $task->getCreatedBy()?->getId() === $employee->getId();
 
         if (!$isAssignee && !$isCreator) {

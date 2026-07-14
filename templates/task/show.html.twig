@@ -39,7 +39,7 @@
                 </div>
                 <div>
                     <dt>Assigned to</dt>
-                    <dd>{{ task.assignedTo ? task.assignedTo.fullName : 'Unassigned' }}</dd>
+                    <dd>{% for assignee in task.assignees %}{{ assignee.fullName }}{% if not loop.last %}, {% endif %}{% else %}Unassigned{% endfor %}</dd>
                 </div>
                 <div>
                     <dt>Created by</dt>

@@ -63,7 +63,7 @@
 
             <div class="stack">
                 {% for task in tasks %}
-                    {% set is_assigned_to_me = task.assignedTo and task.assignedTo.id == employee.id %}
+                    {% set is_assigned_to_me = employee in task.assignees %}
                     {% set is_created_by_me = task.createdBy and task.createdBy.id == employee.id %}
                     {% set can_open_task = is_assigned_to_me or is_created_by_me %}
 
@@ -78,8 +78,8 @@
                                 </h3>
                                 <div class="muted">
                                     {{ task.status|status_label }}
-                                    {% if task.assignedTo %}
-                                        · Assigned to {{ task.assignedTo.fullName }}
+                                    {% if task.assignees|length %}
+                                        · Assigned to {% for assignee in task.assignees %}{{ assignee.fullName }}{% if not loop.last %}, {% endif %}{% endfor %}
                                     {% endif %}
                                     {% if can_open_task %}
                                         · Tracked {{ task.trackedSeconds|duration }}
@@ -108,8 +108,8 @@
                                         {% endfor %}
                                     </select>
                                 </form>
-                            {% elseif task.assignedTo %}
-                                <span class="badge">Owned by {{ task.assignedTo.fullName }}</span>
+                            {% elseif task.assignees|length %}
+                                <span class="badge">Owned by {% for assignee in task.assignees %}{{ assignee.fullName }}{% if not loop.last %}, {% endif %}{% endfor %}</span>
                             {% else %}
                                 <span class="badge">Unassigned</span>
                             {% endif %}

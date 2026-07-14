@@ -24,11 +24,13 @@ class EmployeeTaskFormType extends AbstractType
                 'choices' => $options['projects'],
                 'choice_label' => 'name',
             ])
-            ->add('assignedTo', EntityType::class, [
+            ->add('assignees', EntityType::class, [
                 'class' => User::class,
                 'choices' => $options['employees'],
                 'choice_label' => 'fullName',
                 'label' => 'Assign to',
+                'multiple' => true,
+                'by_reference' => false,
             ])
             ->add('title', TextType::class)
             ->add('description', TextareaType::class, [
