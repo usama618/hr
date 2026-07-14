@@ -3,63 +3,46 @@
 {% block title %}Tasks | Waldbyte HR{% endblock %}
 
 {% block body %}
-    <div class="page-title">
-        <div>
-            <h1>Tasks</h1>
-            <p class="muted">Assign tasks to employees under a project.</p>
-        </div>
-        <a class="button" href="{{ path('admin_task_new') }}">Add Task</a>
+    <div class="page-title task-workspace-title">
+        <div><span class="panel-label">Work Management</span><h1>Tasks</h1><p class="muted">Choose a project and organize its work into tasks and subtasks.</p></div>
+        {% if selected_project %}<a class="button" href="{{ path('admin_task_new', {project: selected_project.id}) }}">Add Task</a>{% endif %}
     </div>
 
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>Task</th>
-                    <th>Project</th>
-                    <th>Assigned To</th>
-                    <th>Status</th>
-                    <th>Tracked</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for task in tasks %}
-                    <tr>
-                        <td>
-                            <strong>{{ task.title }}</strong>
-                            <div class="muted">
-                                {{ task.priority|status_label }} priority
-                                {% if task.comments|length %}
-                                    · {{ task.comments|length }} comments
-                                {% endif %}
-                            </div>
-                        </td>
-                        <td>{{ task.project.name }}</td>
-                        <td>{{ task.assignedTo ? task.assignedTo.fullName : 'Unassigned' }}</td>
-                        <td><span class="badge">{{ task.status|status_label }}</span></td>
-                        <td>{{ task.trackedSeconds|duration }}</td>
-                        <td>
-                            <div class="table-actions">
-                                <a class="button button-secondary" href="{{ path('admin_task_show', {id: task.id}) }}">View</a>
-                                <a class="button button-secondary" href="{{ path('admin_task_edit', {id: task.id}) }}">Edit</a>
-                                <form
-                                    method="post"
-                                    action="{{ path('admin_task_delete', {id: task.id}) }}"
-                                    onsubmit="return confirm('Remove task {{ task.title|e('js') }}? This will also remove its timer history.');"
-                                >
-                                    <input type="hidden" name="_token" value="{{ csrf_token('task_delete_' ~ task.id) }}">
-                                    <button type="submit" class="danger">Remove</button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
+    <div class="task-workspace">
+        <aside class="card task-project-nav" aria-label="Projects">
+            <div class="task-project-nav-head"><div><span class="panel-label">Workspace</span><h2>Projects</h2></div><span class="badge">{{ projects|length }}</span></div>
+            <nav>
+                {% for project in projects %}
+                    <a class="task-project-link{% if selected_project and project.id == selected_project.id %} active{% endif %}" href="{{ path('admin_tasks', {project: project.id}) }}">
+                        <span><strong>{{ project.name }}</strong><small>{{ project.status|status_label }}</small></span>
+                        <span class="task-project-count">{{ project.tasks|length }}</span>
+                    </a>
                 {% else %}
-                    <tr>
-                        <td colspan="6" class="empty">No tasks yet.</td>
-                    </tr>
+                    <p class="muted">No projects yet.</p><a class="button" href="{{ path('admin_project_new') }}">Add Project</a>
                 {% endfor %}
-            </tbody>
-        </table>
+            </nav>
+        </aside>
+
+        <section class="card task-tree-panel">
+            {% if selected_project %}
+                <div class="task-tree-head"><div><span class="panel-label">Selected Project</span><h2>{{ selected_project.name }}</h2></div><span class="badge">{{ task_rows|length }} tasks</span></div>
+                <div class="task-tree-scroll">
+                    <table class="task-tree" role="treegrid" aria-label="Tasks for {{ selected_project.name }}">
+                        <thead><tr><th>Task</th><th>Assignees</th><th>Status</th><th>Priority</th><th>Tags</th><th>Schedule</th><th>Time</th><th></th></tr></thead>
+                        <tbody>{% include 'admin/_task_tree_rows.html.twig' with {task_rows: task_rows, selected_project: selected_project} only %}</tbody>
+                    </table>
+                </div>
+                {% if task_rows is empty %}<div class="empty task-empty"><h3>No tasks in this project</h3><p class="muted">Create the first task to begin planning the work.</p><a class="button" href="{{ path('admin_task_new', {project: selected_project.id}) }}">Add Task</a></div>{% endif %}
+            {% else %}
+                <div class="empty"><h2>Create a project first</h2><p class="muted">Tasks are always organized within a project.</p></div>
+            {% endif %}
+        </section>
     </div>
+
+    {% if selected_task %}
+        <section class="task-detail-dialog card" data-task-dialog aria-labelledby="task-dialog-title" role="dialog" aria-modal="true">
+            <a class="task-dialog-backdrop" href="{{ path('admin_tasks', {project: selected_project.id}) }}" aria-label="Close task"></a>
+            <div class="task-dialog-surface"><div class="task-dialog-head"><div><span class="panel-label">Task #{{ selected_task.id }}</span><h2 id="task-dialog-title">{{ selected_task.title }}</h2><p class="muted">{{ selected_project.name }}</p></div><a class="task-dialog-close" href="{{ path('admin_tasks', {project: selected_project.id}) }}" aria-label="Close">×</a></div><p>{{ selected_task.description ?: 'No description added.' }}</p></div>
+        </section>
+    {% endif %}
 {% endblock %}

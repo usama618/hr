@@ -15,8 +15,10 @@ use App\Form\UserFormType;
 use App\Repository\AttendanceEntryRepository;
 use App\Repository\LeaveRequestRepository;
 use App\Repository\TaskTimeEntryRepository;
+use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
 use App\Service\NotificationService;
+use App\Service\TaskHierarchyService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -234,26 +236,35 @@ class AdminController extends AbstractController
     }
 
     #[Route('/tasks', name: 'tasks')]
-    public function tasks(EntityManagerInterface $entityManager): Response
+    public function tasks(Request $request, EntityManagerInterface $entityManager, TaskRepository $tasks, TaskHierarchyService $hierarchy): Response
     {
+        $projects = $entityManager->getRepository(Project::class)->findBy([], ['name' => 'ASC']);
+        usort($projects, static fn (Project $a, Project $b): int => [$a->getStatus() !== 'active', strtolower($a->getName())] <=> [$b->getStatus() !== 'active', strtolower($b->getName())]);
+        $selectedProject = null;
+        $projectId = (int) $request->query->get('project', 0);
+        foreach ($projects as $project) {
+            if ($project->getId() === $projectId) { $selectedProject = $project; break; }
+        }
+        $selectedProject ??= $projects[0] ?? null;
+        $workspaceTasks = $selectedProject ? $tasks->findWorkspaceTasks($selectedProject) : [];
+        $selectedTask = null;
+        $taskId = (int) $request->query->get('task', 0);
+        foreach ($workspaceTasks as $task) {
+            if ($task->getId() === $taskId) { $selectedTask = $task; break; }
+        }
+
         return $this->render('admin/tasks.html.twig', [
-            'tasks' => $entityManager->getRepository(Task::class)->findBy([], ['createdAt' => 'DESC']),
+            'projects' => $projects,
+            'selected_project' => $selectedProject,
+            'task_rows' => $hierarchy->buildTree($workspaceTasks),
+            'selected_task' => $selectedTask,
         ]);
     }
 
     #[Route('/tasks/{id}', name: 'task_show', requirements: ['id' => '\d+'], methods: ['GET'])]
     public function showTask(Task $task): Response
     {
-        return $this->render('task/show.html.twig', [
-            'task' => $task,
-            'back_path' => $this->generateUrl('admin_tasks'),
-            'back_label' => 'Back to Tasks',
-            'edit_path' => $this->generateUrl('admin_task_edit', ['id' => $task->getId()]),
-            'comment_add_path' => $this->generateUrl('admin_task_comment', ['id' => $task->getId()]),
-            'comment_edit_route' => 'admin_task_comment_edit',
-            'comment_delete_route' => 'admin_task_comment_delete',
-            'can_administer_comments' => true,
-        ]);
+        return $this->redirectToRoute('admin_tasks', ['project' => $task->getProject()?->getId(), 'task' => $task->getId()]);
     }
 
     #[Route('/tasks/new', name: 'task_new')]
@@ -262,8 +273,11 @@ class AdminController extends AbstractController
         EntityManagerInterface $entityManager,
         NotificationService $notifications,
     ): Response {
-        $task = new Task();
-        $form = $this->createForm(TaskFormType::class, $task);
+        $project = $entityManager->getRepository(Project::class)->find((int) $request->query->get('project', 0));
+        $parent = $entityManager->getRepository(Task::class)->find((int) $request->query->get('parent', 0));
+        if ($parent) { $project = $parent->getProject(); }
+        $task = (new Task())->setProject($project)->setParent($parent);
+        $form = $this->createForm(TaskFormType::class, $task, ['locked_project' => $project, 'parent_task' => $parent]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
@@ -274,12 +288,14 @@ class AdminController extends AbstractController
             $entityManager->flush();
             $this->addFlash('success', 'Task added.');
 
-            return $this->redirectToRoute('admin_tasks');
+            return $this->redirectToRoute('admin_tasks', ['project' => $task->getProject()?->getId(), 'task' => $task->getId()]);
         }
 
         return $this->render('admin/task_form.html.twig', [
             'form' => $form,
             'title' => 'Add Task',
+            'project' => $project,
+            'parent' => $parent,
         ]);
     }
 
@@ -290,27 +306,27 @@ class AdminController extends AbstractController
         EntityManagerInterface $entityManager,
         NotificationService $notifications,
     ): Response {
-        $previousAssigneeId = $task->getAssignedTo()?->getId();
+        $previousAssignees = $task->getAssignees()->toArray();
         $previousStatus = $task->getStatus();
-        $form = $this->createForm(TaskFormType::class, $task);
+        $form = $this->createForm(TaskFormType::class, $task, ['locked_project' => $task->getProject()]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
             $actor = $this->getAuthenticatedUser();
             $this->grantProjectAccessForAssignee($task);
-            if ($task->getAssignedTo()?->getId() !== $previousAssigneeId) {
-                $notifications->notifyTaskAssigned($task, $actor);
-            }
+            $notifications->notifyTaskAssigned($task, $actor, $previousAssignees);
             $notifications->notifyTaskStatusChanged($task, $actor, $previousStatus);
             $entityManager->flush();
             $this->addFlash('success', 'Task updated.');
 
-            return $this->redirectToRoute('admin_tasks');
+            return $this->redirectToRoute('admin_tasks', ['project' => $task->getProject()?->getId(), 'task' => $task->getId()]);
         }
 
         return $this->render('admin/task_form.html.twig', [
             'form' => $form,
             'title' => 'Edit Task',
+            'project' => $task->getProject(),
+            'parent' => $task->getParent(),
         ]);
     }
 
@@ -463,10 +479,10 @@ class AdminController extends AbstractController
     private function grantProjectAccessForAssignee(Task $task): void
     {
         $project = $task->getProject();
-        $assignee = $task->getAssignedTo();
-
-        if ($project && $assignee && !$project->getEmployees()->contains($assignee)) {
-            $project->addEmployee($assignee);
+        foreach ($task->getAssignees() as $assignee) {
+            if ($project && !$project->getEmployees()->contains($assignee)) {
+                $project->addEmployee($assignee);
+            }
         }
     }
 

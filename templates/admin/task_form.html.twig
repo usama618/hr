@@ -5,10 +5,11 @@
 {% block body %}
     <div class="page-title">
         <h1>{{ title }}</h1>
-        <a class="button button-secondary" href="{{ path('admin_tasks') }}">Back</a>
+        <a class="button button-secondary" href="{{ path('admin_tasks', project ? {project: project.id} : {}) }}">Back</a>
     </div>
 
     <section class="form-shell">
+        {% if parent %}<p class="muted">Subtask of <strong>{{ parent.title }}</strong></p>{% endif %}
         {{ form_start(form) }}
             {{ form_widget(form) }}
             <div class="actions">

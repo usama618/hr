@@ -1,0 +1,18 @@
+{% for row in task_rows %}
+    {% set task = row.task %}
+    <tr class="task-tree-row{% if row.depth > 0 %} is-nested{% endif %}" role="row" aria-level="{{ row.depth + 1 }}" data-task-id="{{ task.id }}"{% if task.parent %} data-task-parent="{{ task.parent.id }}" hidden{% endif %}>
+        <td role="gridcell">
+            <div class="task-name-cell" style="--task-depth: {{ row.depth }}">
+                {% if row.has_children %}<button type="button" class="task-expand" data-task-toggle="{{ task.id }}" aria-expanded="false" aria-label="Expand {{ task.title }}">›</button>{% else %}<span class="task-expand-spacer"></span>{% endif %}
+                <a href="{{ path('admin_task_show', {id: task.id}) }}"><small>#{{ task.id }}</small><strong>{{ task.title }}</strong></a>
+            </div>
+        </td>
+        <td><div class="task-assignee-stack">{% for assignee in task.assignees|slice(0, 3) %}{% include 'partials/_avatar.html.twig' with {user: assignee, size: 'sm'} only %}{% else %}<span class="muted">Unassigned</span>{% endfor %}{% if task.assignees|length > 3 %}<span class="avatar-overflow">+{{ task.assignees|length - 3 }}</span>{% endif %}</div></td>
+        <td><span class="badge task-status task-status--{{ task.status }}">{{ task.status|status_label }}</span><div class="task-progress"><span style="width: {{ task.completionPercentage }}%"></span></div></td>
+        <td><span class="badge">{{ task.priority|status_label }}</span></td>
+        <td><div class="task-tags">{% for tag in task.tags %}<span>{{ tag }}</span>{% else %}<span class="muted">—</span>{% endfor %}</div></td>
+        <td><small>{{ task.startDate ? task.startDate|date('d.m.Y') : 'No start' }}<br>{{ task.dueDate ? 'Due ' ~ task.dueDate|date('d.m.Y') : 'No due date' }}</small></td>
+        <td><small>{{ task.trackedSeconds|duration }} / {{ task.estimatedMinutes ? (task.estimatedMinutes * 60)|duration : '—' }}</small></td>
+        <td><div class="task-row-actions"><a href="{{ path('admin_task_new', {project: selected_project.id, parent: task.id}) }}" title="Add subtask">＋</a><a href="{{ path('admin_task_edit', {id: task.id}) }}" title="Edit">Edit</a></div></td>
+    </tr>
+{% endfor %}
