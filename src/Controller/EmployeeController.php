@@ -16,8 +16,10 @@ use App\Form\LeaveRequestFormType;
 use App\Repository\AttendanceEntryRepository;
 use App\Repository\LeaveRequestRepository;
 use App\Repository\TaskTimeEntryRepository;
+use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
 use App\Service\NotificationService;
+use App\Service\TaskHierarchyService;
 use App\Service\TaskLifecycleService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -45,7 +47,9 @@ class EmployeeController extends AbstractController
         AttendanceEntryRepository $attendanceEntries,
         LeaveRequestRepository $leaveRequests,
         TaskTimeEntryRepository $taskTimeEntries,
+        TaskRepository $tasks,
         UserRepository $users,
+        TaskHierarchyService $hierarchy,
         EntityManagerInterface $entityManager,
     ): Response {
         $employee = $this->getEmployeeUser();
@@ -61,11 +65,30 @@ class EmployeeController extends AbstractController
             'action' => $this->generateUrl('employee_leave_apply'),
         ]);
         $employeeProjects = $this->getEmployeeProjectChoices($employee);
+        $selectedTaskProject = null;
+        $projectId = (int) $request->query->get('project', 0);
+        foreach ($employeeProjects as $project) {
+            if ($project->getId() === $projectId && $employee->getProjects()->contains($project)) {
+                $selectedTaskProject = $project;
+                break;
+            }
+        }
+        $selectedTaskProject ??= $employeeProjects[0] ?? null;
+        $workspaceTasks = $selectedTaskProject ? $tasks->findWorkspaceTasks($selectedTaskProject) : [];
+        $selectedEmployeeTask = null;
+        $taskId = (int) $request->query->get('task', 0);
+        foreach ($workspaceTasks as $workspaceTask) {
+            if ($workspaceTask->getId() === $taskId) {
+                $selectedEmployeeTask = $workspaceTask;
+                break;
+            }
+        }
         $taskForm = null;
 
         if ($employeeProjects !== []) {
             $taskDraft = (new Task())
                 ->addAssignee($employee)
+                ->setProject($selectedTaskProject)
                 ->setEstimatedMinutes(0);
             $taskForm = $this->createForm(EmployeeTaskFormType::class, $taskDraft, [
                 'action' => $this->generateUrl('employee_task_create'),
@@ -87,6 +110,10 @@ class EmployeeController extends AbstractController
             'task_form' => $taskForm?->createView(),
             'leave_requests' => $leaveRequests->findRecentForUser($employee),
             'task_status_options' => self::TASK_STATUS_OPTIONS,
+            'task_projects' => $employeeProjects,
+            'selected_task_project' => $selectedTaskProject,
+            'employee_task_rows' => $hierarchy->buildTree($workspaceTasks),
+            'selected_employee_task' => $selectedEmployeeTask,
         ]);
     }
 
