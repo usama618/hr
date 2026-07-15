@@ -38,4 +38,22 @@ final class AdminEmployeeProfileTest extends TestCase
             self::assertStringContainsString($needle, $template);
         }
     }
+
+    public function testAdminVisibleEmployeeNamesUseTheProfileLinkPartial(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $partialPath = $root.'/templates/partials/_employee_name.html.twig';
+        self::assertFileExists($partialPath);
+        $partial = file_get_contents($partialPath);
+        self::assertIsString($partial);
+        foreach (['ROLE_SUPER_ADMIN', 'ROLE_EMPLOYEE', 'admin_employee_show'] as $needle) {
+            self::assertStringContainsString($needle, $partial);
+        }
+
+        foreach (['admin/employees.html.twig', 'admin/reports.html.twig', 'admin/_task_detail_panel.html.twig', 'documents/index.html.twig', 'directory/index.html.twig', 'task/show.html.twig'] as $templatePath) {
+            $template = file_get_contents($root.'/templates/'.$templatePath);
+            self::assertIsString($template);
+            self::assertStringContainsString("partials/_employee_name.html.twig", $template, $templatePath);
+        }
+    }
 }

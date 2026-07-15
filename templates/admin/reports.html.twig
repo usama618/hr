@@ -53,7 +53,7 @@
                 <tbody>
                     {% for leave in leave_requests %}
                         <tr>
-                            <td>{{ leave.employee.fullName }}</td>
+                            <td>{% include 'partials/_employee_name.html.twig' with {user: leave.employee} only %}</td>
                             <td>{{ leave.leaveType|status_label }}</td>
                             <td>{{ leave.startDate|date('Y-m-d') }} - {{ leave.endDate|date('Y-m-d') }}</td>
                             <td>{{ leave.days }}</td>
@@ -132,7 +132,7 @@
                                 <div class="name-cell">
                                     {% include 'partials/_avatar.html.twig' with {user: row.employee, size: 'sm'} only %}
                                     <div>
-                                        <strong>{{ row.employee.fullName }}</strong>
+                                        <strong>{% include 'partials/_employee_name.html.twig' with {user: row.employee} only %}</strong>
                                         {% if row.employee.jobTitle %}
                                             <span class="muted">{{ row.employee.jobTitle }}</span>
                                         {% endif %}
@@ -218,7 +218,7 @@
                                 <div class="name-cell">
                                     {% include 'partials/_avatar.html.twig' with {user: timeline.employee, size: 'sm'} only %}
                                     <div>
-                                        <strong>{{ timeline.employee.fullName }}</strong>
+                                        <strong>{% include 'partials/_employee_name.html.twig' with {user: timeline.employee} only %}</strong>
                                         {% if timeline.employee.jobTitle %}
                                             <span class="muted">{{ timeline.employee.jobTitle }}</span>
                                         {% endif %}
@@ -297,7 +297,7 @@
                 <tbody>
                     {% for entry in task_time_entries %}
                         <tr>
-                            <td>{{ entry.employee.fullName }}</td>
+                            <td>{% include 'partials/_employee_name.html.twig' with {user: entry.employee} only %}</td>
                             <td>{{ entry.task.project.name }}</td>
                             <td>{{ entry.task.title }}</td>
                             <td>{{ entry.startedAt|date('Y-m-d H:i') }}</td>

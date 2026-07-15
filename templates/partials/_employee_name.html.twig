@@ -1,0 +1,8 @@
+{% set link_class = class|default('employee-profile-link') %}
+{% if user and is_granted('ROLE_SUPER_ADMIN') and user.role == 'ROLE_EMPLOYEE' %}
+    <a class="{{ link_class }}" href="{{ path('admin_employee_show', {id: user.id}) }}">{{ user.fullName }}</a>
+{% elseif user %}
+    <span class="{{ link_class }}">{{ user.fullName }}</span>
+{% else %}
+    <span class="{{ link_class }}">{{ fallback|default('Deleted user') }}</span>
+{% endif %}

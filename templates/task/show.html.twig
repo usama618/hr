@@ -39,11 +39,11 @@
                 </div>
                 <div>
                     <dt>Assigned to</dt>
-                    <dd>{% for assignee in task.assignees %}{{ assignee.fullName }}{% if not loop.last %}, {% endif %}{% else %}Unassigned{% endfor %}</dd>
+                    <dd>{% for assignee in task.assignees %}{% include 'partials/_employee_name.html.twig' with {user: assignee} only %}{% if not loop.last %}, {% endif %}{% else %}Unassigned{% endfor %}</dd>
                 </div>
                 <div>
                     <dt>Created by</dt>
-                    <dd>{{ task.createdBy ? task.createdBy.fullName : 'Admin' }}</dd>
+                    <dd>{% include 'partials/_employee_name.html.twig' with {user: task.createdBy, fallback: 'Admin'} only %}</dd>
                 </div>
                 <div>
                     <dt>Status</dt>
@@ -103,7 +103,7 @@
 
                             <div class="comment-content">
                                 <div class="comment-meta">
-                                    <strong>{{ comment.author ? comment.author.fullName : 'Deleted user' }}</strong>
+                                    <strong>{% include 'partials/_employee_name.html.twig' with {user: comment.author} only %}</strong>
                                     <span>{{ comment.createdAt|date('Y-m-d H:i') }}</span>
                                 </div>
                                 <p>{{ comment.body|nl2br }}</p>

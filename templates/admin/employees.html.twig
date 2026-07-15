@@ -31,7 +31,7 @@
                             <div class="name-cell">
                                 {% include 'partials/_avatar.html.twig' with {user: employee, size: 'sm'} only %}
                                 <div>
-                                    <strong>{{ employee.fullName }}</strong>
+                                    <strong>{% include 'partials/_employee_name.html.twig' with {user: employee} only %}</strong>
                                     {% if employee.jobTitle %}
                                         <span class="muted">{{ employee.jobTitle }}</span>
                                     {% endif %}

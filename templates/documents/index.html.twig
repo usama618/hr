@@ -114,10 +114,10 @@
                                 {% if document.companyWide %}
                                     <span class="badge badge-success">Company</span>
                                 {% else %}
-                                    <span class="badge">{{ document.owner.fullName }}</span>
+                                    <span class="badge">{% include 'partials/_employee_name.html.twig' with {user: document.owner} only %}</span>
                                 {% endif %}
                                 {% if document.uploadedBy %}
-                                    <span class="muted">Uploaded by {{ document.uploadedBy.fullName }}</span>
+                                    <span class="muted">Uploaded by {% include 'partials/_employee_name.html.twig' with {user: document.uploadedBy} only %}</span>
                                 {% endif %}
                             </div>
                         </div>

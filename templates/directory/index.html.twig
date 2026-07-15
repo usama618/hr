@@ -51,7 +51,7 @@
                 <div class="directory-card-head">
                     {% include 'partials/_avatar.html.twig' with {user: user, size: 'lg'} only %}
                     <div>
-                        <h2>{{ user.fullName }}</h2>
+                        <h2>{% include 'partials/_employee_name.html.twig' with {user: user} only %}</h2>
                         <p class="muted">{{ user.jobTitle ?: user.role|role_label }}</p>
                     </div>
                 </div>
