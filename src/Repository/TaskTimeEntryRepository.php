@@ -43,6 +43,48 @@ class TaskTimeEntryRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
     }
 
+    /** @return list<TaskTimeEntry> */
+    public function findForUserBetween(User $employee, \DateTimeImmutable $from, \DateTimeImmutable $to): array
+    {
+        return $this->createQueryBuilder('t')
+            ->leftJoin('t.task', 'task')
+            ->addSelect('task')
+            ->leftJoin('task.project', 'project')
+            ->addSelect('project')
+            ->andWhere('t.employee = :employee')
+            ->andWhere('t.startedAt >= :from')
+            ->andWhere('t.startedAt < :to')
+            ->setParameter('employee', $employee)
+            ->setParameter('from', $from)
+            ->setParameter('to', $to)
+            ->orderBy('t.startedAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /** @return array<int, int> */
+    public function sumSecondsByTaskForUser(User $employee): array
+    {
+        $entries = $this->createQueryBuilder('t')
+            ->leftJoin('t.task', 'task')
+            ->addSelect('task')
+            ->andWhere('t.employee = :employee')
+            ->setParameter('employee', $employee)
+            ->getQuery()
+            ->getResult();
+        $totals = [];
+
+        foreach ($entries as $entry) {
+            if (!$entry instanceof TaskTimeEntry || !$entry->getTask()?->getId()) {
+                continue;
+            }
+            $taskId = $entry->getTask()->getId();
+            $totals[$taskId] = ($totals[$taskId] ?? 0) + $entry->getSeconds();
+        }
+
+        return $totals;
+    }
+
     /**
      * @return list<TaskTimeEntry>
      */
