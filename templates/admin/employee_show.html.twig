@@ -1,0 +1,124 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ employee.fullName }} | Waldbyte HR{% endblock %}
+
+{% block body %}
+    <div class="admin-employee-header card">
+        <div class="admin-employee-identity">
+            {% include 'partials/_avatar.html.twig' with {user: employee, size: 'xl'} only %}
+            <div>
+                <span class="panel-label">Employee profile</span>
+                <h1>{{ employee.fullName }}</h1>
+                <p class="muted">{{ employee.jobTitle ?: 'Employee' }} · {{ employee.email }}</p>
+                <div class="admin-employee-badges">
+                    <span class="badge {{ employee.active ? 'badge-success' : 'badge-danger' }}">{{ employee.active ? 'Active' : 'Inactive' }}</span>
+                    <span class="badge">{{ employee.projects|length }} projects</span>
+                    {% for skill in employee.skillList %}<span class="badge">{{ skill }}</span>{% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="actions">
+            <a class="button button-secondary" href="{{ path('admin_employees') }}">Back to Users</a>
+            <a class="button" href="{{ path('admin_employee_edit', {id: employee.id}) }}">Edit User</a>
+        </div>
+    </div>
+
+    <section class="admin-employee-week-head">
+        <div>
+            <span class="panel-label">Weekly overview</span>
+            <h2>{{ week.start|date('d.m.Y') }} – {{ week.end|date('d.m.Y') }}</h2>
+        </div>
+        <form method="get" action="{{ path('admin_employee_show', {id: employee.id}) }}">
+            <label>Choose week<input type="week" name="week" value="{{ week.week_value }}" onchange="this.form.submit()"></label>
+        </form>
+    </section>
+
+    <div class="admin-employee-metrics">
+        <article class="card admin-employee-metric"><span>Days worked</span><strong>{{ week.days_worked }}</strong><small>Attendance days</small></article>
+        <article class="card admin-employee-metric"><span>Attendance hours</span><strong>{{ week.attendance_seconds|duration }}</strong><small>After recorded breaks</small></article>
+        <article class="card admin-employee-metric"><span>Task hours</span><strong>{{ week.task_seconds|duration }}</strong><small>Selected week</small></article>
+        <article class="card admin-employee-metric"><span>Assigned tasks</span><strong>{{ tasks|length }}</strong><small>Current assignments</small></article>
+    </div>
+
+    <section class="card admin-employee-tasks">
+        <div class="section-head"><div><span class="panel-label">Work items</span><h2>Assigned tasks</h2></div></div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Task</th><th>Project</th><th>Status</th><th>Priority</th><th>Schedule</th><th>Tracked</th></tr></thead>
+                <tbody>
+                    {% for task in tasks %}
+                        <tr>
+                            <td><a href="{{ path('admin_tasks', {project: task.project.id, task: task.id}) }}"><strong>{% if task.parent %}↳ {% endif %}{{ task.title }}</strong></a></td>
+                            <td>{{ task.project.name }}</td>
+                            <td><span class="badge task-status task-status--{{ task.status }}">{{ task.status|status_label }}</span></td>
+                            <td><span class="badge">{{ task.priority|status_label }}</span></td>
+                            <td><small>{{ task.startDate ? task.startDate|date('d.m.Y') : 'No start' }}<br>{{ task.dueDate ? 'Due ' ~ task.dueDate|date('d.m.Y') : 'No due date' }}</small></td>
+                            <td>{{ (task_totals[task.id]|default(0))|duration }}</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="6" class="empty">No tasks are assigned to this employee.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="admin-employee-time">
+        <div class="section-head"><div><span class="panel-label">Monday – Sunday</span><h2>Daily time</h2><p class="muted">Completed sessions can be corrected. Running sessions remain read-only.</p></div></div>
+        <div class="admin-employee-days">
+            {% for day in week.days %}
+                <article class="card admin-employee-day">
+                    <header>
+                        <div><strong>{{ day.date|date('l') }}</strong><span>{{ day.date|date('d.m.Y') }}</span></div>
+                        <div><span>Attendance {{ day.attendance_seconds|duration }}</span><span>Tasks {{ day.task_seconds|duration }}</span></div>
+                    </header>
+
+                    {% for entry in day.attendance_entries %}
+                        <div class="admin-employee-session">
+                            <div><span class="badge">Attendance</span><strong>Work session</strong></div>
+                            <span>{{ entry.checkInAt|date('H:i') }} – {{ entry.checkOutAt ? entry.checkOutAt|date('H:i') : 'Running' }}</span>
+                            <span>Break {{ entry.breakSeconds|duration }}</span>
+                            <span>Worked {{ entry.workedSeconds|duration }}</span>
+                            {% if entry.checkOutAt %}
+                                <details class="admin-employee-correction">
+                                    <summary>Edit</summary>
+                                    <form method="post" action="{{ path('admin_employee_attendance_update', {employeeId: employee.id, entryId: entry.id}) }}">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('attendance_correction_' ~ entry.id) }}">
+                                        <input type="hidden" name="week" value="{{ week.week_value }}">
+                                        <label>Check in<input type="datetime-local" name="started_at" value="{{ entry.checkInAt|date('Y-m-d\\TH:i') }}" required></label>
+                                        <label>Check out<input type="datetime-local" name="ended_at" value="{{ entry.checkOutAt|date('Y-m-d\\TH:i') }}" required></label>
+                                        <button>Save</button>
+                                    </form>
+                                </details>
+                            {% else %}<span class="badge badge-success">Running</span>{% endif %}
+                        </div>
+                    {% endfor %}
+
+                    {% for entry in day.task_time_entries %}
+                        <div class="admin-employee-session">
+                            <div><span class="badge">Task</span><strong>{{ entry.task.title }}</strong><small>{{ entry.task.project.name }}</small></div>
+                            <span>{{ entry.startedAt|date('H:i') }} – {{ entry.endedAt ? entry.endedAt|date('H:i') : 'Running' }}</span>
+                            <span>{{ entry.seconds|duration }}</span>
+                            <span class="muted">{{ entry.note ?: 'No note' }}</span>
+                            {% if entry.endedAt %}
+                                <details class="admin-employee-correction">
+                                    <summary>Edit</summary>
+                                    <form method="post" action="{{ path('admin_employee_task_time_update', {employeeId: employee.id, entryId: entry.id}) }}">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('task_time_correction_' ~ entry.id) }}">
+                                        <input type="hidden" name="week" value="{{ week.week_value }}">
+                                        <label>Start<input type="datetime-local" name="started_at" value="{{ entry.startedAt|date('Y-m-d\\TH:i') }}" required></label>
+                                        <label>End<input type="datetime-local" name="ended_at" value="{{ entry.endedAt|date('Y-m-d\\TH:i') }}" required></label>
+                                        <label>Note<input name="note" value="{{ entry.note }}"></label>
+                                        <button>Save</button>
+                                    </form>
+                                </details>
+                            {% else %}<span class="badge badge-success">Running</span>{% endif %}
+                        </div>
+                    {% endfor %}
+
+                    {% if day.attendance_entries is empty and day.task_time_entries is empty %}<p class="muted admin-employee-day-empty">No tracked time.</p>{% endif %}
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+{% endblock %}

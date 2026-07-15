@@ -26,6 +26,187 @@
     color-scheme: light;
 }
 
+/* Admin employee profile */
+.admin-employee-header,
+.admin-employee-identity,
+.admin-employee-week-head,
+.admin-employee-day header,
+.admin-employee-badges {
+    align-items: center;
+    display: flex;
+    gap: 16px;
+}
+
+.admin-employee-header,
+.admin-employee-week-head,
+.admin-employee-day header {
+    justify-content: space-between;
+}
+
+.admin-employee-header {
+    margin-bottom: 24px;
+}
+
+.admin-employee-header h1,
+.admin-employee-week-head h2,
+.admin-employee-tasks h2,
+.admin-employee-time h2 {
+    margin: 3px 0 0;
+}
+
+.admin-employee-badges {
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.admin-employee-week-head {
+    margin-bottom: 14px;
+}
+
+.admin-employee-week-head label {
+    min-width: 190px;
+}
+
+.admin-employee-metrics {
+    display: grid;
+    gap: 14px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-employee-metric span,
+.admin-employee-metric small {
+    color: var(--muted);
+    display: block;
+}
+
+.admin-employee-metric strong {
+    display: block;
+    font-size: clamp(25px, 3vw, 38px);
+    line-height: 1.1;
+    margin: 9px 0 5px;
+}
+
+.admin-employee-tasks,
+.admin-employee-time {
+    margin-top: 20px;
+}
+
+.admin-employee-tasks {
+    overflow: hidden;
+    padding: 0;
+}
+
+.admin-employee-tasks .section-head,
+.admin-employee-time > .section-head {
+    padding: 20px;
+}
+
+.admin-employee-days {
+    display: grid;
+    gap: 14px;
+}
+
+.admin-employee-day {
+    padding: 0;
+}
+
+.admin-employee-day header {
+    background: var(--surface-muted);
+    border-bottom: 1px solid var(--line);
+    padding: 13px 16px;
+}
+
+.admin-employee-day header div,
+.admin-employee-session > div:first-child {
+    display: grid;
+    gap: 2px;
+}
+
+.admin-employee-day header div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.admin-employee-session {
+    align-items: center;
+    border-bottom: 1px solid var(--line);
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(100px, auto)) auto;
+    padding: 12px 16px;
+}
+
+.admin-employee-session:last-child {
+    border-bottom: 0;
+}
+
+.admin-employee-session small {
+    color: var(--muted);
+}
+
+.admin-employee-correction {
+    position: relative;
+}
+
+.admin-employee-correction summary {
+    color: var(--primary-dark);
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.admin-employee-correction form {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(180px, 1fr)) minmax(130px, 1fr) auto;
+    margin-top: 8px;
+    padding: 12px;
+    position: absolute;
+    right: 0;
+    width: min(720px, calc(100vw - 60px));
+    z-index: 4;
+}
+
+.admin-employee-day-empty {
+    margin: 0;
+    padding: 18px 16px;
+}
+
+@media (max-width: 900px) {
+    .admin-employee-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-employee-session {
+        grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(100px, auto)) auto;
+    }
+}
+
+@media (max-width: 620px) {
+    .admin-employee-header,
+    .admin-employee-week-head,
+    .admin-employee-day header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .admin-employee-metrics,
+    .admin-employee-session,
+    .admin-employee-correction form {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-employee-correction form {
+        position: static;
+        width: 100%;
+    }
+}
+
 [data-theme="dark"] {
     --bg: #0f1418;
     --surface: #172029;

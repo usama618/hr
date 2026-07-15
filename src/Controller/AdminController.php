@@ -18,10 +18,13 @@ use App\Repository\TaskTimeEntryRepository;
 use App\Repository\TaskRepository;
 use App\Repository\UserRepository;
 use App\Service\NotificationService;
+use App\Service\EmployeeWeekViewBuilder;
 use App\Service\TaskHierarchyService;
 use App\Service\TaskActivityService;
 use App\Service\TaskLifecycleService;
+use App\Service\TimeEntryCorrectionService;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -52,6 +55,89 @@ class AdminController extends AbstractController
         return $this->render('admin/employees.html.twig', [
             'employees' => $users->findBy([], ['createdAt' => 'DESC']),
         ]);
+    }
+
+    #[Route('/employees/{id}', name: 'employee_show', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function showEmployee(
+        User $employee,
+        Request $request,
+        AttendanceEntryRepository $attendanceEntries,
+        TaskTimeEntryRepository $taskTimeEntries,
+        TaskRepository $tasks,
+        EmployeeWeekViewBuilder $weekBuilder,
+    ): Response {
+        if ($employee->getRole() !== User::ROLE_EMPLOYEE) {
+            throw $this->createNotFoundException('Employee profile not found.');
+        }
+
+        $selectedDate = $this->readEmployeeProfileWeek($request->query->get('week'));
+        $range = $weekBuilder->range($selectedDate);
+        $attendance = $attendanceEntries->findForUserBetween($employee, $range['start'], $range['end_exclusive']);
+        $taskTime = $taskTimeEntries->findForUserBetween($employee, $range['start'], $range['end_exclusive']);
+
+        return $this->render('admin/employee_show.html.twig', [
+            'employee' => $employee,
+            'week' => $weekBuilder->build($selectedDate, $attendance, $taskTime),
+            'tasks' => $tasks->findAssignedTo($employee),
+            'task_totals' => $taskTimeEntries->sumSecondsByTaskForUser($employee),
+        ]);
+    }
+
+    #[Route('/employees/{employeeId}/attendance/{entryId}', name: 'employee_attendance_update', requirements: ['employeeId' => '\d+', 'entryId' => '\d+'], methods: ['POST'])]
+    public function updateEmployeeAttendance(
+        #[MapEntity(id: 'employeeId')] User $employee,
+        #[MapEntity(id: 'entryId')] AttendanceEntry $entry,
+        Request $request,
+        TimeEntryCorrectionService $corrections,
+        EntityManagerInterface $entityManager,
+    ): Response {
+        if ($employee->getRole() !== User::ROLE_EMPLOYEE || $entry->getEmployee()?->getId() !== $employee->getId()) {
+            throw $this->createNotFoundException('Attendance entry not found for this employee.');
+        }
+        $this->guardCsrf($request, 'attendance_correction_'.$entry->getId());
+
+        try {
+            $corrections->correctAttendance(
+                $entry,
+                (string) $request->request->get('started_at'),
+                (string) $request->request->get('ended_at'),
+            );
+            $entityManager->flush();
+            $this->addFlash('success', 'Attendance time corrected.');
+        } catch (\InvalidArgumentException $exception) {
+            $this->addFlash('error', $exception->getMessage());
+        }
+
+        return $this->redirectToEmployeeProfile($employee, $request->request->get('week'));
+    }
+
+    #[Route('/employees/{employeeId}/task-time/{entryId}', name: 'employee_task_time_update', requirements: ['employeeId' => '\d+', 'entryId' => '\d+'], methods: ['POST'])]
+    public function updateEmployeeTaskTime(
+        #[MapEntity(id: 'employeeId')] User $employee,
+        #[MapEntity(id: 'entryId')] TaskTimeEntry $entry,
+        Request $request,
+        TimeEntryCorrectionService $corrections,
+        EntityManagerInterface $entityManager,
+    ): Response {
+        if ($employee->getRole() !== User::ROLE_EMPLOYEE || $entry->getEmployee()?->getId() !== $employee->getId()) {
+            throw $this->createNotFoundException('Task-time entry not found for this employee.');
+        }
+        $this->guardCsrf($request, 'task_time_correction_'.$entry->getId());
+
+        try {
+            $corrections->correctTaskTime(
+                $entry,
+                (string) $request->request->get('started_at'),
+                (string) $request->request->get('ended_at'),
+                $request->request->get('note') !== null ? (string) $request->request->get('note') : null,
+            );
+            $entityManager->flush();
+            $this->addFlash('success', 'Task time corrected.');
+        } catch (\InvalidArgumentException $exception) {
+            $this->addFlash('error', $exception->getMessage());
+        }
+
+        return $this->redirectToEmployeeProfile($employee, $request->request->get('week'));
     }
 
     #[Route('/employees/new', name: 'employee_new')]
@@ -524,6 +610,32 @@ class AdminController extends AbstractController
         if (!$this->isCsrfTokenValid($tokenId, (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException('Invalid CSRF token.');
         }
+    }
+
+    private function readEmployeeProfileWeek(mixed $value): \DateTimeImmutable
+    {
+        $timezone = new \DateTimeZone('Europe/Berlin');
+        $date = new \DateTimeImmutable('now', $timezone);
+
+        if (is_string($value) && preg_match('/^(\d{4})-W(\d{2})$/', $value, $matches) === 1) {
+            $year = (int) $matches[1];
+            $week = (int) $matches[2];
+            if ($week >= 1 && $week <= 53) {
+                return $date->setISODate($year, $week, 1)->setTime(0, 0);
+            }
+        }
+
+        return $date;
+    }
+
+    private function redirectToEmployeeProfile(User $employee, mixed $week): Response
+    {
+        $parameters = ['id' => $employee->getId()];
+        if (is_string($week) && $week !== '') {
+            $parameters['week'] = $week;
+        }
+
+        return $this->redirectToRoute('admin_employee_show', $parameters);
     }
 
     private function isCurrentUser(User $employee): bool
